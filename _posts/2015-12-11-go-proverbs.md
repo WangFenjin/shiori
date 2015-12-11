@@ -1,8 +1,8 @@
 ---
 title: "Go Proverbs"
 ---
-
-https://www.youtube.com/watch?v=PAAkCSZUG1c
+![gopher](/images/gopher.png "gopher")
+<a href="https://www.youtube.com/watch?v=PAAkCSZUG1c" target="_blank">https://www.youtube.com/watch?v=PAAkCSZUG1c</a>
 
 * Don’t communicate by sharing memory, share memory by communicating.
 * Concurrency is not parallelism.
