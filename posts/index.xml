@@ -10,5 +10,5 @@ A emacs configuration framework Support both emacs and vim editing styles Great 
 SPC+p+p SPC+p+f SPC+p+t Search: SPC+s ripgrep
 SPC+* SPC+/ SPC+s+s Navigation: lsp
 Code: gd, SPC+j+i Buffer: SPC+b Window: SPC+w, ALT+num SPC+a Editing: vim evil
-Version Control: magit Shell: SPC+&amp;rsquo; eshll
+Version Control: magit Shell: SPC+&amp;rsquo; eshell
 Help: SPC+?, SPC+h</description></item></channel></rss>
