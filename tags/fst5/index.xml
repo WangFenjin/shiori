@@ -6,11 +6,104 @@
 实现 simple 分词器之前提供了一个 simple_query() 函数来帮助用户生成 query，我们也可以加一个新的函数来实现词组的功能。经过简单的调研，我们发现 cppjieba 用 C++ 实现了结巴分词的功能，很适用与我们的需求。
 所以我实现了一个新的函数叫做 jieba_query() ，它的使用方式跟 simple_query() 一样，内部实现时，我们会先使用 cppjieba 对输入进行分词，再根据分词的结果构建 SQLite3 能理解的 query ，从而实现了词组匹配的功能。具体的逻辑可以参考 这里 。对于不需要结巴分词功能的用户，可以在编译的时候使用 -DSIMPLE_WITH_JIEBA=OFF 关闭结巴分词的功能，这样能减少编译文件的大小，方便客户端对文件大小敏感的场景使用。
 使用 本文想着重介绍一下 SQLite3 FTS5 功能使用的问题，这些问题都是有朋友在项目的 issue 中提到过的，都是非常好的问题，但是也说明有不少人对怎么使用 FTS 表不太清楚，希望本文能解决一些疑惑。
-首先第一点，FTS5 表虽然是一个虚拟表，提供了全文搜索的功能，但是它整体还是跳不出 SQL 的范畴，所以其实很多用法和其他 SQL 表是一样的，当然它也跳不出 SQL 的限制。比如有一个 issue 问如果表中有多列的时候，能不能检索全表，但是只返回命中的那些列？答案是不行的，因为按照 SQL 的语法规则，SELECT 语句后面必须显示说明你想要 SELECT 哪些列，所以结果列是必须用户指定的，如果我们像知道哪些列命中了，只能通过其他一些手段，感兴趣的朋友可以看这个 issue36。</description></item><item><title>Simple: 一个支持中文和拼音搜索的 sqlite fts5插件</title><link>https://www.wangfenjin.com/posts/simple-tokenizer/</link><pubDate>Sun, 08 Mar 2020 00:00:00 +0000</pubDate><guid>https://www.wangfenjin.com/posts/simple-tokenizer/</guid><description>之前的工作关系，需要在手机上支持中文和拼音搜索。由于手机上存储数据一般都是用 sqlite，所以是基于 sqlite3 fts5 来实现。这段时间再次入门 c++，所以想用 c++ 实现一下，一来用于练手，二来当时做的时候发现网络上这方面开源的实现不多，也造福下其他人。
+首先第一点，FTS5 表虽然是一个虚拟表，提供了全文搜索的功能，但是它整体还是跳不出 SQL 的范畴，所以其实很多用法和其他 SQL 表是一样的，当然它也跳不出 SQL 的限制。比如有一个 issue 问如果表中有多列的时候，能不能检索全表，但是只返回命中的那些列？答案是不行的，因为按照 SQL 的语法规则，SELECT 语句后面必须显示说明你想要 SELECT 哪些列，所以结果列是必须用户指定的，如果我们像知道哪些列命中了，只能通过其他一些手段，感兴趣的朋友可以看这个 issue36。</description><content>&lt;p>一年前开发 simple 分词器，实现了微信在两篇文章中描述的，基于 SQLite 支持中文和拼音的搜索方案。具体背景参见&lt;a href="https://www.wangfenjin.com/posts/simple-tokenizer/">这篇文章&lt;/a>。项目发布后受到了一些朋友的关注，后续也发布了一些改进，提升了项目易用性。&lt;/p>
+&lt;p>最近重新体验微信客户端搜索功能，发现对于中文的搜索已经不是基于单字命中，而是更精准的基于词组。比如搜索“法国”，之前如果句子中有“法”和“国”两个字时也会命中，所以如果一句话里包含“国法”就会被命中，但是这跟“法国”没有任何关系。&lt;/p>
+&lt;p>本文描述对 simple 分词器添加的基于词组命中的实现，从而实现更好的查找效果。另外本文也会基于之前在 issue 中大家提到的问题，提供一个怎么使用 SQLite FTS 表的建议。&lt;/p>
+&lt;h2 id="背景">背景&lt;/h2>
+&lt;p>先简单回顾一下之前的实现，因为结巴分词只跟中文有关，所以本文会略去拼音的部分。&lt;/p>
+&lt;p>搜索主要分为两部分，建立索引和命中索引。为了实现中文的搜索，我们先把句子按照单字拆分，按照单字建立索引；然后对于用户的输入，也同样按照单字拆分，这样 query 就能命中索引了。为了支持词组搜索，再按照单字拆分就很难满足需求了，所以可以考虑的方案是要么改索引，要么改 query。如果改索引的话会有一些问题，比如如果用户就输入了一个字比如“国”，但是我们建索引的时候把“法国”放到了一起，那“国”字就命中不了了，所以最好是保持单字索引不变，通过改写 query 来达到检索词组的效果。&lt;/p>
+&lt;h2 id="实现">实现&lt;/h2>
+&lt;p>simple 分词器之前提供了一个 simple_query() 函数来帮助用户生成 query，我们也可以加一个新的函数来实现词组的功能。经过简单的调研，我们发现 &lt;a href="https://github.com/yanyiwu/cppjieba">cppjieba&lt;/a> 用 C++ 实现了结巴分词的功能，很适用与我们的需求。&lt;/p>
+&lt;p>所以我实现了一个新的函数叫做 jieba_query() ，它的使用方式跟 simple_query() 一样，内部实现时，我们会先使用 cppjieba 对输入进行分词，再根据分词的结果构建 SQLite3 能理解的 query ，从而实现了词组匹配的功能。具体的逻辑可以参考 &lt;a href="https://github.com/wangfenjin/simple/pull/35">这里&lt;/a> 。对于不需要结巴分词功能的用户，可以在编译的时候使用 &lt;code>-DSIMPLE_WITH_JIEBA=OFF&lt;/code> 关闭结巴分词的功能，这样能减少编译文件的大小，方便客户端对文件大小敏感的场景使用。&lt;/p>
+&lt;h2 id="使用">使用&lt;/h2>
+&lt;p>本文想着重介绍一下 SQLite3 FTS5 功能使用的问题，这些问题都是有朋友在项目的 issue 中提到过的，都是非常好的问题，但是也说明有不少人对怎么使用 FTS 表不太清楚，希望本文能解决一些疑惑。&lt;/p>
+&lt;p>首先第一点，FTS5 表虽然是一个虚拟表，提供了全文搜索的功能，但是它整体还是跳不出 SQL 的范畴，所以其实很多用法和其他 SQL 表是一样的，当然它也跳不出 SQL 的限制。比如有一个 issue 问如果表中有多列的时候，能不能检索全表，但是只返回命中的那些列？答案是不行的，因为按照 SQL 的语法规则，SELECT 语句后面必须显示说明你想要 SELECT 哪些列，所以结果列是必须用户指定的，如果我们像知道哪些列命中了，只能通过其他一些手段，感兴趣的朋友可以看这个 &lt;a href="https://github.com/wangfenjin/simple/issues/36">issue36&lt;/a>。&lt;/p>
+&lt;p>另外 simple 分词器提供了不少额外的功能，比如 simple_query() 和 simple_highlight() 等辅助函数，但是它并不影响我们使用原有 FTS5 的功能，比如如果想按照相关度排序，FTS5 自带的 &lt;code>order by rank&lt;/code> 功能还是可以继续可以使用，也就是说 &lt;a href="https://www.sqlite.org/fts5.html">FTS5 页面&lt;/a> 提供的所有功能都是可以和 simple 分词器一起使用的。&lt;/p>
+&lt;p>最后也是最重要的一个问题，FTS5 表到底该怎么用？有一个 &lt;a href="https://github.com/wangfenjin/simple/issues/26">issue26&lt;/a> 提到的问题非常好，我把它放到这里：&lt;/p>
+&lt;blockquote>
+&lt;p>《微信全文搜索优化之路》一文中针对索引表的介绍，我对索引有几个问题想请教一下：&lt;/p>
+&lt;ol>
+&lt;li>业务表是正常的程序的数据表，还要再为了全文搜索再多建立一份索引表，是吗？我直接将我的业务数据表在创建的时候按虚表建立行吗？（例如create virtual table tablename using fts5(列名1,列名2,tokenize = &amp;lsquo;simple&amp;rsquo;)）&lt;/li>
+&lt;li>如果再多建立一份索引表，那是不是每一个业务表和对应的索引表的表字段是完全相同？&lt;/li>
+&lt;li>如果再多建立一份索引表，那数据库的大小是不是加倍了，尤其是把文件或图片影片存入数据库的情况（BLOB类型）？&lt;/li>
+&lt;li>原文中【为了解决业务变化而带来的表结构修改问题，微信把业务属性数字化】，这也是我想要的，能否帮助贴下原文中提到的【索引表-IndexTable】和【数据表-MetaTable】的建表语句？&lt;/li>
+&lt;/ol>
+&lt;/blockquote>
+&lt;p>核心的问题是：想让表数据支持全文搜索，需要把数据复制一份吗？这样会不会导致数据库膨胀？在用户的手机上我们可不想占用太多无谓的空间。&lt;/p>
+&lt;h3 id="externel-content-table">externel content table&lt;/h3>
+&lt;p>其实这个问题在 FTS5 的官方文档中已经给出了解决方案那就是 &lt;a href="https://www.sqlite.org/fts5.html#external_content_and_contentless_tables">externel content table&lt;/a>，大家也可以参考 &lt;a href="https://kimsereylam.com/sqlite/2020/03/06/full-text-search-with-sqlite.html">这篇文章&lt;/a> 。&lt;/p>
+&lt;p>它的意思是我们可以建一张普通表，然后再建一张 FTS5 表来支持全文索引，这张虚拟表本身不会存储真实的数据，如果 SELECT 语句用到具体的内容，都会通过关联关系去原表获取，这样就不存在数据重复的问题了。但是这里就会涉及到数据一致性的问题，怎么保证原表的数据和索引表是一致的呢？通过 trigger 也就是触发器来实现：对于原表的增删改，都会通过触发器同步到 FTS 表。这样基本上就完美解决了上面用户的问题。&lt;/p>
+&lt;p>可能有人会问为什么不直接用 FTS5 表呢？这样普通表就不用了，也省了触发器的逻辑。原因是 FTS 表提供了全文索引的能力，但是它也有限制，对于基于 ID 或者其他普通索引的请求它是不支持的，如果我们想有一个时间列并且基于时间列索引排序，FTS表就不行，还是需要普通表。通过普通表和 FTS 表结合的方案，我们就能同时使用两者的能力。&lt;/p>
+&lt;h3 id="微信的方案">微信的方案&lt;/h3>
+&lt;p>需要注意的是，微信并没有使用上面提到的方案，而是单独建了一张打平的索引表，把所有需要全文索引的数据放到一张单独的表里面，再通过外键关联到具体的业务去。这样的好处在微信的文章中有所提及，主要是其他关联的表结构变更的时候，FTS 表不用动，这样很容易添加想要搜索的字段，只需把该字段写入 FTS 表及关联关系的表就行，表结构见下图：&lt;/p>
+&lt;p>&lt;img src="https://www.wangfenjin.com/img/wechat-fts5.jpeg" alt="wechat-fts5">&lt;/p>
+&lt;p>个人觉得对于微信这个复杂度的业务，可以考虑这个方案，毕竟需要搜索的信息非常多，这样方便各个业务复用搜索能力。但是对于大部分的业务，用 external content table 可能是更简单的方案，毕竟在数据写入和读取的时候都更快更方便，微信的方案在数据操作流程上会复杂不少，需要逻辑上做更多的封装。&lt;/p>
+&lt;h2 id="总结">总结&lt;/h2>
+&lt;p>上面主要介绍了 simple 分词器最新的功能，基于结巴分词实现基于词组的搜索功能，实现更精准的匹配。另外也介绍了在实际项目中使用 FTS 表的方案，希望对大家有所助益。&lt;/p>
+&lt;h2 id="reference">Reference&lt;/h2>
+&lt;ul>
+&lt;li>Simple 分词器: &lt;a href="https://github.com/wangfenjin/simple">https://github.com/wangfenjin/simple&lt;/a>&lt;/li>
+&lt;li>sqlite 官方文档：&lt;a href="https://www.sqlite.org/fts5.html">https://www.sqlite.org/fts5.html&lt;/a>&lt;/li>
+&lt;li>微信全文搜索优化之路：&lt;a href="https://cloud.tencent.com/developer/article/1006159">https://cloud.tencent.com/developer/article/1006159&lt;/a>&lt;/li>
+&lt;li>微信移动端的全文检索多音字问题解决方案：&lt;a href="https://cloud.tencent.com/developer/article/1198371">https://cloud.tencent.com/developer/article/1198371&lt;/a>&lt;/li>
+&lt;li>Simple: 一个支持中文和拼音搜索的 sqlite fts5插件：&lt;a href="https://www.wangfenjin.com/posts/simple-tokenizer/">https://www.wangfenjin.com/posts/simple-tokenizer/&lt;/a>&lt;/li>
+&lt;li>Full Text Search With Sqlite SQLite：&lt;a href="https://kimsereylam.com/sqlite/2020/03/06/full-text-search-with-sqlite.html">https://kimsereylam.com/sqlite/2020/03/06/full-text-search-with-sqlite.html&lt;/a>&lt;/li>
+&lt;/ul></content></item><item><title>Simple: 一个支持中文和拼音搜索的 sqlite fts5插件</title><link>https://www.wangfenjin.com/posts/simple-tokenizer/</link><pubDate>Sun, 08 Mar 2020 00:00:00 +0000</pubDate><guid>https://www.wangfenjin.com/posts/simple-tokenizer/</guid><description>之前的工作关系，需要在手机上支持中文和拼音搜索。由于手机上存储数据一般都是用 sqlite，所以是基于 sqlite3 fts5 来实现。这段时间再次入门 c++，所以想用 c++ 实现一下，一来用于练手，二来当时做的时候发现网络上这方面开源的实现不多，也造福下其他人。
 背景 搜索现在几乎是每个 APP 必备的功能，用户已经习惯了搜索框搜一下，避免到处去找。搜索也是帮助用户查找旧信息，发现新功能的一个重要手段。平常我们用微信的时候经常会搜索联系人和聊天记录，发现微信这一块做的还是非常好的。关于微信的全文搜索，可以看看这两篇文章：微信全文搜索优化之路 和 微信移动端的全文检索多音字问题解决方案 。
 第一篇文章主要是问题和原理的概述，第二篇文章是核心分词器的实现。我写的这个项目主要是实现了 simple 分词器，并提供一些辅助函数帮助使用。
 Simple 分词器 搜索的核心是建倒排索引，建索引的核心是分词器。 跟名字一下，Simple 分词器的规则非常简单：
 空白符跳过 连续的数字作为整体是一个索引 连续的英文字母作为整体并转换成小写索引 中文字单独建索引，并且把中文字转成拼音后也建搜索，这样就能同时支持中文和拼音检索。另外把拼音首字母也建索引，这样搜索 zjl 就能命中 &amp;ldquo;周杰伦&amp;rdquo;。 其他字符统一单独建索引，这样搜索 😊 也能搜到 上面的 5 条都比较好理解，关于中文为什么这么做（而不是连续的中文一起建索引），是由于客户端搜索的需求决定的。具体可以参考上面微信的两篇文章。
 有了上面的规则，代码写起来就很简单了，核心逻辑 30 行就解决了。这块代码运行效率也比较高，一遍扫描 O(n) 的复杂度就完成了分词操作。
 query 拆分 索引建好之后，query 需要根据分词规则来写才能查询到数据。比如根据上面的逻辑：
-如果查数字，我们要把搜索词当作前缀来用，比如用户搜索 123， query 就需要换成 123*，这样如果索引里面有 12345 也能被搜索出来 对于英文，除了要当作前缀，还需要把搜索词转成小写，比如用护搜索 Hello，query 就需要换成 hello*, 这样如果索引里面有 HelloWorld 也能被命中 对于中文和其他字符，都要拆成单个的才能命中索引 最后对于拼音（其实我们没办法区分英文和拼音，统一当作拼音处理就行），需要把拼音按照规则拆分，因为我们的拼音索引是单字建立的。这样如果用户搜索 &amp;ldquo;zhangliangy&amp;rdquo;，拼音就可以被拆成 &amp;lsquo;zhang AND liang AND y*'，从而命中&amp;quot;张靓颖&amp;rdquo;。具体规则微信的文章中也有详述。 可以看到 query 词重构的逻辑也比较多，在之前的项目中没有好的办法，所以是自己在应用层代码里面组装好了 query 再给 sqlite 去搜的，这样其实不太方便。在这个项目中，我实现了一个 simple_query 的字符串函数，输入一个 string，它会给转换成组装好的搜索词，用法跟使用 sqlite 内置函数一样，这样就方便很多了，下面是一个例子：</description></item></channel></rss>
+如果查数字，我们要把搜索词当作前缀来用，比如用户搜索 123， query 就需要换成 123*，这样如果索引里面有 12345 也能被搜索出来 对于英文，除了要当作前缀，还需要把搜索词转成小写，比如用护搜索 Hello，query 就需要换成 hello*, 这样如果索引里面有 HelloWorld 也能被命中 对于中文和其他字符，都要拆成单个的才能命中索引 最后对于拼音（其实我们没办法区分英文和拼音，统一当作拼音处理就行），需要把拼音按照规则拆分，因为我们的拼音索引是单字建立的。这样如果用户搜索 &amp;ldquo;zhangliangy&amp;rdquo;，拼音就可以被拆成 &amp;lsquo;zhang AND liang AND y*'，从而命中&amp;quot;张靓颖&amp;rdquo;。具体规则微信的文章中也有详述。 可以看到 query 词重构的逻辑也比较多，在之前的项目中没有好的办法，所以是自己在应用层代码里面组装好了 query 再给 sqlite 去搜的，这样其实不太方便。在这个项目中，我实现了一个 simple_query 的字符串函数，输入一个 string，它会给转换成组装好的搜索词，用法跟使用 sqlite 内置函数一样，这样就方便很多了，下面是一个例子：</description><content>&lt;p>之前的工作关系，需要在手机上支持中文和拼音搜索。由于手机上存储数据一般都是用 sqlite，所以是基于 sqlite3 fts5 来实现。这段时间再次入门 c++，所以想用 c++ 实现一下，一来用于练手，二来当时做的时候发现网络上这方面开源的实现不多，也造福下其他人。&lt;/p>
+&lt;h2 id="背景">背景&lt;/h2>
+&lt;p>搜索现在几乎是每个 APP 必备的功能，用户已经习惯了搜索框搜一下，避免到处去找。搜索也是帮助用户查找旧信息，发现新功能的一个重要手段。平常我们用微信的时候经常会搜索联系人和聊天记录，发现微信这一块做的还是非常好的。关于微信的全文搜索，可以看看这两篇文章：&lt;a href="https://juejin.im/entry/59e6cd266fb9a0451968ab02">微信全文搜索优化之路&lt;/a> 和 &lt;a href="https://cloud.tencent.com/developer/article/1198371">微信移动端的全文检索多音字问题解决方案&lt;/a> 。&lt;/p>
+&lt;p>第一篇文章主要是问题和原理的概述，第二篇文章是核心分词器的实现。我写的这个项目主要是实现了 simple 分词器，并提供一些辅助函数帮助使用。&lt;/p>
+&lt;h2 id="simple-分词器">Simple 分词器&lt;/h2>
+&lt;p>搜索的核心是建倒排索引，建索引的核心是分词器。 跟名字一下，Simple 分词器的规则非常简单：&lt;/p>
+&lt;ol>
+&lt;li>空白符跳过&lt;/li>
+&lt;li>连续的数字作为整体是一个索引&lt;/li>
+&lt;li>连续的英文字母作为整体并转换成小写索引&lt;/li>
+&lt;li>中文字单独建索引，并且把中文字转成拼音后也建搜索，这样就能同时支持中文和拼音检索。另外把拼音首字母也建索引，这样搜索 zjl 就能命中 &amp;ldquo;周杰伦&amp;rdquo;。&lt;/li>
+&lt;li>其他字符统一单独建索引，这样搜索 😊 也能搜到&lt;/li>
+&lt;/ol>
+&lt;p>上面的 5 条都比较好理解，关于中文为什么这么做（而不是连续的中文一起建索引），是由于客户端搜索的需求决定的。具体可以参考上面微信的两篇文章。&lt;/p>
+&lt;p>有了上面的规则，代码写起来就很简单了，&lt;a href="https://github.com/wangfenjin/simple/blob/a9234eb7169d98522ff07f42e0e9f9aa603bbebd/src/simple_tokenizer.cc#L104">核心逻辑&lt;/a> 30 行就解决了。这块代码运行效率也比较高，一遍扫描 O(n) 的复杂度就完成了分词操作。&lt;/p>
+&lt;h2 id="query-拆分">query 拆分&lt;/h2>
+&lt;p>索引建好之后，query 需要根据分词规则来写才能查询到数据。比如根据上面的逻辑：&lt;/p>
+&lt;ol>
+&lt;li>如果查数字，我们要把搜索词当作前缀来用，比如用户搜索 123， query 就需要换成 123*，这样如果索引里面有 12345 也能被搜索出来&lt;/li>
+&lt;li>对于英文，除了要当作前缀，还需要把搜索词转成小写，比如用护搜索 Hello，query 就需要换成 hello*, 这样如果索引里面有 HelloWorld 也能被命中&lt;/li>
+&lt;li>对于中文和其他字符，都要拆成单个的才能命中索引&lt;/li>
+&lt;li>最后对于拼音（其实我们没办法区分英文和拼音，统一当作拼音处理就行），需要把拼音按照规则拆分，因为我们的拼音索引是单字建立的。这样如果用户搜索 &amp;ldquo;zhangliangy&amp;rdquo;，拼音就可以被拆成 &amp;lsquo;zhang AND liang AND y*'，从而命中&amp;quot;张靓颖&amp;rdquo;。具体规则微信的文章中也有详述。&lt;/li>
+&lt;/ol>
+&lt;p>可以看到 query 词重构的逻辑也比较多，在之前的项目中没有好的办法，所以是自己在应用层代码里面组装好了 query 再给 sqlite 去搜的，这样其实不太方便。在这个项目中，我实现了一个 simple_query 的字符串函数，输入一个 string，它会给转换成组装好的搜索词，用法跟使用 sqlite 内置函数一样，这样就方便很多了，下面是一个例子：&lt;/p>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-sql" data-lang="sql">&lt;span style="color:#75715e">-- 完整例子：https://github.com/wangfenjin/simple/blob/master/test.sql
+&lt;/span>&lt;span style="color:#75715e">&lt;/span>
+&lt;span style="color:#75715e">-- load so file
+&lt;/span>&lt;span style="color:#75715e">&lt;/span>.&lt;span style="color:#66d9ef">load&lt;/span> libsimple.so
+&lt;span style="color:#75715e">-- set tokenize to simple
+&lt;/span>&lt;span style="color:#75715e">&lt;/span>&lt;span style="color:#66d9ef">CREATE&lt;/span> VIRTUAL &lt;span style="color:#66d9ef">TABLE&lt;/span> t1 &lt;span style="color:#66d9ef">USING&lt;/span> fts5(x, tokenize &lt;span style="color:#f92672">=&lt;/span> &lt;span style="color:#e6db74">&amp;#34;&lt;/span>&lt;span style="color:#e6db74">simple&lt;/span>&lt;span style="color:#e6db74">&amp;#34;&lt;/span>);
+&lt;span style="color:#75715e">-- add some values into the table
+&lt;/span>&lt;span style="color:#75715e">&lt;/span>&lt;span style="color:#66d9ef">insert&lt;/span> &lt;span style="color:#66d9ef">into&lt;/span> t1 &lt;span style="color:#66d9ef">values&lt;/span> (&lt;span style="color:#e6db74">&amp;#34;&lt;/span>&lt;span style="color:#e6db74">周杰伦 Jay Chou:最美的不是下雨天，是曾与你躲过雨的屋檐&lt;/span>&lt;span style="color:#e6db74">&amp;#34;&lt;/span>),
+&lt;span style="color:#75715e">-- query result: [周杰伦] Jay Chou:最美的不是下雨天，是曾与你躲过雨的屋檐
+&lt;/span>&lt;span style="color:#75715e">&lt;/span>&lt;span style="color:#66d9ef">select&lt;/span> simple_highlight(t1, &lt;span style="color:#ae81ff">0&lt;/span>, &lt;span style="color:#e6db74">&amp;#39;&lt;/span>&lt;span style="color:#e6db74">[&lt;/span>&lt;span style="color:#e6db74">&amp;#39;&lt;/span>, &lt;span style="color:#e6db74">&amp;#39;&lt;/span>&lt;span style="color:#e6db74">]&lt;/span>&lt;span style="color:#e6db74">&amp;#39;&lt;/span>) &lt;span style="color:#66d9ef">from&lt;/span> t1 &lt;span style="color:#66d9ef">where&lt;/span> x &lt;span style="color:#66d9ef">match&lt;/span> simple_query(&lt;span style="color:#e6db74">&amp;#39;&lt;/span>&lt;span style="color:#e6db74">zhoujiel&lt;/span>&lt;span style="color:#e6db74">&amp;#39;&lt;/span>);
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>可以看到， match 后面用 simple_query 这个函数，传入用户输入的搜索词就可以用了。&lt;/p>
+&lt;p>另外 sql 中还有一个 simple_highlight 函数，它的作用和内置的 highlight 函数一样，只是它会把连续命中的词一起高亮。比如对于文档&amp;quot;周杰伦&amp;rdquo;，如果搜索词是 &amp;lsquo;zhou AND jie&amp;rsquo;，那么 highlight 函数会返回 &amp;ldquo;[周][杰]伦&amp;rdquo;，simple_highlight 会返回 &amp;ldquo;[周杰]伦&amp;rdquo;。&lt;/p>
+&lt;h2 id="总结">总结&lt;/h2>
+&lt;p>最后说几句关于 sqlite fts5 的使用的问题。个人建议通过 trigger 的方式来维护索引的这张表，具体使用的方式可以在官方文章中搜索 trigger 找到例子。这样使用的好处是没有复杂的逻辑去保证文档数据和索引数据一致，微信的文章中很大一部分复杂度在描述怎么保证数据一致的问题。他们可能有自己的业务复杂性，但是对于一般的场景来说， trigger 是最好的方式。&lt;/p>
+&lt;p>从这个项目我们能学到：&lt;/p>
+&lt;ol>
+&lt;li>怎么给 sqlite3 做一个支持中文和拼音的 fts5 拓展&lt;/li>
+&lt;li>怎么给 sqlite3 添加用户自定义的函数&lt;/li>
+&lt;li>在一个项目中同时使用 c 和 c++ ，并合理处理边界问题&lt;/li>
+&lt;/ol>
+&lt;p>大家可以下载使用，也可以根据自己的需求去改进，定制更多的函数和策略。&lt;/p>
+&lt;h2 id="reference">Reference&lt;/h2>
+&lt;ul>
+&lt;li>Simple 分词器: &lt;a href="https://github.com/wangfenjin/simple">https://github.com/wangfenjin/simple&lt;/a>&lt;/li>
+&lt;li>sqlite 官方文档：&lt;a href="https://www.sqlite.org/fts5.html">https://www.sqlite.org/fts5.html&lt;/a>&lt;/li>
+&lt;li>微信全文搜索优化之路：&lt;a href="https://juejin.im/entry/59e6cd266fb9a0451968ab02">https://juejin.im/entry/59e6cd266fb9a0451968ab02&lt;/a>&lt;/li>
+&lt;li>微信移动端的全文检索多音字问题解决方案：&lt;a href="https://cloud.tencent.com/developer/article/1198371">https://cloud.tencent.com/developer/article/1198371&lt;/a>&lt;/li>
+&lt;/ul></content></item></channel></rss>

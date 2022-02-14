@@ -3,4 +3,122 @@
 libduckdb-sys 了解过 rust 的同学可能知道，rust 提供了 ffi 的方式与其他语言互通。因为 duckdb 本身是 C++ 编写的，想要在 rust 里面使用 duckdb，就需要考虑 ffi 的问题。而基于 ffi 对其他语言程序封装的基础库，一般会被命名为 libxxx-sys，这也就是 libduckdb-sys 的由来。
 为了方便大家使用，duckdb 提供了 C++ 原生接口，C 接口，以及与 SQLite3 兼容的 C 接口。我在做 libduckdb-sys 的时候对这三种接口都尝试过，相关的讨论可以参见 Rust Support，我这里介绍一下当时的情况。
 基于 SQLite3 接口 最开始我使用的是 SQLite3 的接口，原因主要有三个：
-我对 SQLite 比较熟悉，想必用起来会比较方便； 觉得 SQLite 的接口被广泛使用，接口比较稳定，以后不至于大改； 也许是最重要的一点，市面上已经有 SQLite 的 rust 封装rusqlite，基于 SQLite 的接口应该能最大程度复用 rusqlite 的代码。 尝试之后确实发现很快能把程序跑起来，基本的功能也能使用。但是随着进一步的深入以及对 duckdb 更多的了解，发现了一些弊端：</description></item></channel></rss>
+我对 SQLite 比较熟悉，想必用起来会比较方便； 觉得 SQLite 的接口被广泛使用，接口比较稳定，以后不至于大改； 也许是最重要的一点，市面上已经有 SQLite 的 rust 封装rusqlite，基于 SQLite 的接口应该能最大程度复用 rusqlite 的代码。 尝试之后确实发现很快能把程序跑起来，基本的功能也能使用。但是随着进一步的深入以及对 duckdb 更多的了解，发现了一些弊端：</description><content>&lt;h2 id="背景">背景&lt;/h2>
+&lt;p>&lt;a href="https://duckdb.org/">duckdb&lt;/a> 是一个 C++ 编写的单机版嵌入式分析型数据库。它刚开源的时候是对标 SQLite 的列存数据库，并提供与 SQLite 一样的易用性，编译成一个头文件和一个 cpp 文件就可以在程序中使用，甚至提供与 SQLite 兼容的接口，因此受到了很多人的&lt;a href="https://news.ycombinator.com/item?id=24531085">关注&lt;/a>。&lt;/p>
+&lt;p>本文介绍笔者近期开发的 duckdb-rs 库，让大家可以很方便地在 rust 代码库中使用 duckdb 的功能。&lt;/p>
+&lt;h2 id="libduckdb-sys">libduckdb-sys&lt;/h2>
+&lt;p>了解过 rust 的同学可能知道，rust 提供了 &lt;a href="https://doc.rust-lang.org/nomicon/ffi.html">ffi&lt;/a> 的方式与其他语言互通。因为 duckdb 本身是 C++ 编写的，想要在 rust 里面使用 duckdb，就需要考虑 ffi 的问题。而基于 ffi 对其他语言程序封装的基础库，一般会被命名为 libxxx-sys，这也就是 libduckdb-sys 的由来。&lt;/p>
+&lt;p>为了方便大家使用，duckdb 提供了 C++ 原生接口，C 接口，以及与 SQLite3 兼容的 C 接口。我在做 libduckdb-sys 的时候对这三种接口都尝试过，相关的讨论可以参见 &lt;a href="https://github.com/duckdb/duckdb/issues/949">Rust Support&lt;/a>，我这里介绍一下当时的情况。&lt;/p>
+&lt;h3 id="基于-sqlite3-接口">基于 SQLite3 接口&lt;/h3>
+&lt;p>最开始我使用的是 SQLite3 的接口，原因主要有三个：&lt;/p>
+&lt;ol>
+&lt;li>我对 SQLite 比较熟悉，想必用起来会比较方便；&lt;/li>
+&lt;li>觉得 SQLite 的接口被广泛使用，接口比较稳定，以后不至于大改；&lt;/li>
+&lt;li>也许是最重要的一点，市面上已经有 SQLite 的 rust 封装&lt;a href="https://github.com/rusqlite/rusqlite">rusqlite&lt;/a>，基于 SQLite 的接口应该能最大程度复用 rusqlite 的代码。&lt;/li>
+&lt;/ol>
+&lt;p>尝试之后确实发现很快能把程序跑起来，基本的功能也能使用。但是随着进一步的深入以及对 duckdb 更多的了解，发现了一些弊端：&lt;/p>
+&lt;ol>
+&lt;li>虽说 duckdb 是想最大程度兼容 SQLite，但是毕竟一个是行存一个是列存，有区别在所难免，接口肯定也没办法做到 100% 兼容；&lt;/li>
+&lt;li>有一个区别需要特别提出来，SQLite 是&lt;a href="https://www.sqlite.org/datatype3.html">动态数据类型&lt;/a>，而 duckdb 是静态类型，也就是说在 SQLite 中你可以认为所有的数据都是存成 Text，在读取的时候根据 schema 来解析数据；而 duckdb 是会根据数据类型来存储数据，并且根据列存的特性做一些存储优化。有了这个区别之后，如果我们使用 SQLite 的接口的话，会做一些不必要的数据格式转换，性能有损，程序也不直观。&lt;/li>
+&lt;li>duckdb 可以被编译成一个 so 使用，如果想使用 SQLite 的接口，需要再编译一个 sqlite3_api_wrapper 出来，两个库合作才能使用 SQLite 的接口，这给程序分发引入了额外的负担；另外目前 duckdb 在 release 的时候没有自带 sqlite3_api_wrapper，需要用户自己去编译，使用上又多了一些不便。&lt;/li>
+&lt;li>由于上面的封装的问题，数据类型的问题，以及通过 SQLite 接口查询 duckdb 的数据时候，结果集会被复制一遍，资源占用必定上升。&lt;/li>
+&lt;/ol>
+&lt;p>基于上面一些原因，我最终放弃了基于 SQLite 接口来开发，转而尝试使用原生的 C++ 或者 C 接口。&lt;/p>
+&lt;h3 id="基于-c-接口">基于 C++ 接口&lt;/h3>
+&lt;p>既然为了性能和接口丰富性，使用 C++ 接口当然是首选，毕竟 duckdb 本身主要都是拿 C++ 开发的，duckdb 的 &lt;a href="https://github.com/duckdb/duckdb/tree/master/tools/pythonpkg">python 封装&lt;/a> 也是拿 C++ 接口来做的。&lt;/p>
+&lt;p>市面上也有方便 rust 与 C++ 交互的一些代码库，比如 &lt;a href="https://github.com/dtolnay/cxx">cxx&lt;/a> 和 &lt;a href="https://github.com/google/autocxx">autocxx&lt;/a>。其中 autocxx 入手门槛低使用上更简单，而 cxx 的可定制性更强，功能更丰富。在尝试了几次之后发现了一些问题，主要还是 rust ffi 只能支持部分的 C++ 语法，大部分情况下可能是够用的，但是对于 duckdb 这样比较大型的数据库代码，还是有很多不支持的地方。除非自己再基于现有的 C++ 接口封装一份支持 cxx 的版本，否则就算这一次编译过了，也很难保证以后 duckdb 的作者以后不会引入其他的特性导致不能兼容。&lt;/p>
+&lt;p>而 rust 基于 C 语言的 ffi 是原生支持的，所以最终还是下定决心基于 C 接口来开发。&lt;/p>
+&lt;h3 id="基于-c-接口-1">基于 C 接口&lt;/h3>
+&lt;p>因为有 rusqlite 作为参考，所以很快实现了基于 C 接口的版本。简单来说，主要是通过 &lt;a href="https://github.com/eqrion/cbindgen">cbindgen&lt;/a>、&lt;a href="https://doc.rust-lang.org/cargo/reference/build-scripts.html">build.rs&lt;/a> 和 rust 的 &lt;a href="https://doc.rust-lang.org/cargo/reference/features.html">features&lt;/a> 功能来实现。其中：&lt;/p>
+&lt;ul>
+&lt;li>cbindgen 用于生成基于 C 接口的 rust 代码，方便 rust 其他程序使用&lt;/li>
+&lt;li>build.rs 和 features 用于控制整个编译流程，用户可以根据需要是当场编译依赖库，还是使用机器上已经安装好的版本&lt;/li>
+&lt;li>build.rs 中还可以选择使用 &lt;a href="https://crates.io/crates/cc">cc&lt;/a> 来实时编译 duckdb 实现，这样其他使用 rust 封装的人不用关心 duckdb 的安装问题&lt;/li>
+&lt;/ul>
+&lt;p>应该说这是一个很通用的提供 C 接口 rust 封装的解决方案，感兴趣的同学可以 &lt;a href="https://github.com/wangfenjin/duckdb-rs/tree/main/libduckdb-sys">参考&lt;/a>。&lt;/p>
+&lt;h2 id="duckdb-rs">duckdb-rs&lt;/h2>
+&lt;p>完成了 libduckdb-sys 之后其实只是第一步，因为这样生成的代码都是 unsafe 代码，具体的使用例子可以参考 &lt;a href="https://github.com/wangfenjin/duckdb-rs/blob/main/libduckdb-sys/src/lib.rs">lib.rs&lt;/a> 中的测试代码。但是我们使用 rust 主要是为了他的安全性，rust 希望我们尽量减少 unsafe 的使用。所以一般的 rust 封装都会基于 libxxx-sys 提供一个内存安全的版本，这就是 duckdb-rs 的部分。&lt;/p>
+&lt;h3 id="小试牛刀">小试牛刀&lt;/h3>
+&lt;p>还是因为有 rusqlite 的参考，所以花了一些时间终于实现了最初始的版本，并且我已经把这个版本发布到 &lt;a href="https://crates.io/crates/duckdb">crates.io&lt;/a> 上了。这个版本的目标是基于 rusqlite 做最小的改动，并删掉 SQLite 特有的功能，让整个程序跑起来。完成之后效果不错，下面是文档中给的一个使用范例：&lt;/p>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-rust" data-lang="rust">&lt;span style="color:#66d9ef">use&lt;/span> duckdb::{params, Connection, Result};
+&lt;span style="color:#75715e">#[&lt;/span>&lt;span style="color:#75715e">derive(Debug)&lt;/span>&lt;span style="color:#75715e">]&lt;/span>
+&lt;span style="color:#66d9ef">struct&lt;/span> &lt;span style="color:#a6e22e">Person&lt;/span> {
+id: &lt;span style="color:#66d9ef">i32&lt;/span>,
+name: String,
+data: Option&lt;span style="color:#f92672">&amp;lt;&lt;/span>Vec&lt;span style="color:#f92672">&amp;lt;&lt;/span>&lt;span style="color:#66d9ef">u8&lt;/span>&lt;span style="color:#f92672">&amp;gt;&lt;/span>&lt;span style="color:#f92672">&amp;gt;&lt;/span>,
+}
+&lt;span style="color:#66d9ef">fn&lt;/span> &lt;span style="color:#a6e22e">main&lt;/span>() -&amp;gt; Result&lt;span style="color:#f92672">&amp;lt;&lt;/span>()&lt;span style="color:#f92672">&amp;gt;&lt;/span> {
+&lt;span style="color:#66d9ef">let&lt;/span> conn &lt;span style="color:#f92672">=&lt;/span> Connection::open_in_memory()&lt;span style="color:#f92672">?&lt;/span>;
+conn.execute_batch(
+r&lt;span style="color:#960050;background-color:#1e0010">&amp;#34;&lt;/span>CREATE SEQUENCE seq;
+CREATE TABLE person (
+id INTEGER PRIMARY KEY DEFAULT NEXTVAL(&lt;span style="color:#a6e22e">&amp;#39;seq&lt;/span>&lt;span style="color:#960050;background-color:#1e0010">&amp;#39;&lt;/span>),
+name TEXT NOT NULL,
+data BLOB
+);
+&lt;span style="color:#960050;background-color:#1e0010">&amp;#34;&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>;
+&lt;span style="color:#66d9ef">let&lt;/span> me &lt;span style="color:#f92672">=&lt;/span> Person {
+id: &lt;span style="color:#ae81ff">0&lt;/span>,
+name: &lt;span style="color:#e6db74">&amp;#34;Steven&amp;#34;&lt;/span>.to_string(),
+data: None,
+};
+conn.execute(
+&lt;span style="color:#e6db74">&amp;#34;INSERT INTO person (name, data) VALUES (?, ?)&amp;#34;&lt;/span>,
+params&lt;span style="color:#f92672">!&lt;/span>[me.name, me.data],
+)&lt;span style="color:#f92672">?&lt;/span>;
+&lt;span style="color:#66d9ef">let&lt;/span> &lt;span style="color:#66d9ef">mut&lt;/span> stmt &lt;span style="color:#f92672">=&lt;/span> conn.prepare(&lt;span style="color:#e6db74">&amp;#34;SELECT id, name, data FROM person&amp;#34;&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>;
+&lt;span style="color:#66d9ef">let&lt;/span> person_iter &lt;span style="color:#f92672">=&lt;/span> stmt.query_map([], &lt;span style="color:#f92672">|&lt;/span>row&lt;span style="color:#f92672">|&lt;/span> {
+Ok(Person {
+id: &lt;span style="color:#a6e22e">row&lt;/span>.get(&lt;span style="color:#ae81ff">0&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>,
+name: &lt;span style="color:#a6e22e">row&lt;/span>.get(&lt;span style="color:#ae81ff">1&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>,
+data: &lt;span style="color:#a6e22e">row&lt;/span>.get(&lt;span style="color:#ae81ff">2&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>,
+})
+})&lt;span style="color:#f92672">?&lt;/span>;
+&lt;span style="color:#66d9ef">for&lt;/span> person &lt;span style="color:#66d9ef">in&lt;/span> person_iter {
+println&lt;span style="color:#f92672">!&lt;/span>(&lt;span style="color:#e6db74">&amp;#34;Found person {:?}&amp;#34;&lt;/span>, person.unwrap());
+}
+Ok(())
+}
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>可以看到，接口设计非常优雅，代码也非常符合 rust 的风格，使用上也非常方便。实现过程中发现有些 duckdb 的 C 接口还不支持的部分，我也通过提 issue 或者 PR 去解决了。这里必须要提一点，duckdb 的维护者非常耐心，不管是回答问题还是 review 代码都非常专业。&lt;/p>
+&lt;p>剩下的问题有一个是之前提到的，duckdb 是静态类型的数据，所以需要支持很多数据类型，这里面工作量不小。另外，因为我之前也有关注 &lt;a href="https://arrow.apache.org/">Apache Arrow&lt;/a>，做过 OLAP 数据库的同学可能知道，Apache Arrow 是一个通用的列式内存格式，方便在内存中做大数据量的计算或者传输，有很多 OLAP 数据引擎都在用。刚好 duckdb 也支持 arrow 格式，所以就想尝试使用 arrow 格式来查询数据，这样至少有两个好处，一个是这样我们就可以暴露 arrow 格式的数据给用户，在使用的时候就可以用上 arrow 生态的其他功能，有可能会产生一些化学反应；另外 arrow 也是有丰富的数据类型和明确的定义，反正我们是要支持很多数据类型的，现在的 C 接口本身也不完善，用 arrow 格式反而更加清晰。&lt;/p>
+&lt;h3 id="通过-apache-arrow-查询数据">通过 Apache Arrow 查询数据&lt;/h3>
+&lt;p>基于上面的考虑，我把目标又看向了 &lt;a href="https://github.com/apache/arrow-rs">arrow-rs&lt;/a>，并给 duckdb 的 C 接口也加上了 &lt;a href="https://github.com/duckdb/duckdb/pull/1978">arrow 的功能&lt;/a>，最终在 duckdb-rs 中实现了通过 Arrow 格式来查询数据，实现参见 &lt;a href="https://github.com/wangfenjin/duckdb-rs/pull/8">这里&lt;/a>。&lt;/p>
+&lt;p>实现之后，之前通过行来读取数据的接口完全不变，还能直接查询到 Arrow 格式的数据，下面是一个测试的例子：&lt;/p>
+&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-rust" data-lang="rust">&lt;span style="color:#66d9ef">fn&lt;/span> &lt;span style="color:#a6e22e">test_query_arrow_record_batch_large&lt;/span>() -&amp;gt; Result&lt;span style="color:#f92672">&amp;lt;&lt;/span>()&lt;span style="color:#f92672">&amp;gt;&lt;/span> {
+&lt;span style="color:#66d9ef">let&lt;/span> db &lt;span style="color:#f92672">=&lt;/span> Connection::open_in_memory().unwrap();
+db.execute_batch(&lt;span style="color:#e6db74">&amp;#34;BEGIN TRANSACTION&amp;#34;&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>;
+db.execute_batch(&lt;span style="color:#e6db74">&amp;#34;CREATE TABLE test(t INTEGER);&amp;#34;&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>;
+&lt;span style="color:#66d9ef">for&lt;/span> _ &lt;span style="color:#66d9ef">in&lt;/span> &lt;span style="color:#ae81ff">0&lt;/span>..&lt;span style="color:#ae81ff">300&lt;/span> {
+db.execute_batch(&lt;span style="color:#e6db74">&amp;#34;INSERT INTO test VALUES (1); INSERT INTO test VALUES (2); INSERT INTO test VALUES (3); INSERT INTO test VALUES (4); INSERT INTO test VALUES (5);&amp;#34;&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>;
+}
+db.execute_batch(&lt;span style="color:#e6db74">&amp;#34;END TRANSACTION&amp;#34;&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>;
+&lt;span style="color:#66d9ef">let&lt;/span> rbs &lt;span style="color:#f92672">=&lt;/span> db.query_arrow(&lt;span style="color:#e6db74">&amp;#34;select t from test order by t&amp;#34;&lt;/span>, [])&lt;span style="color:#f92672">?&lt;/span>;
+assert_eq&lt;span style="color:#f92672">!&lt;/span>(rbs.len(), &lt;span style="color:#ae81ff">2&lt;/span>);
+assert_eq&lt;span style="color:#f92672">!&lt;/span>(rbs.iter().map(&lt;span style="color:#f92672">|&lt;/span>rb&lt;span style="color:#f92672">|&lt;/span> rb.num_rows()).sum::&lt;span style="color:#f92672">&amp;lt;&lt;/span>&lt;span style="color:#66d9ef">usize&lt;/span>&lt;span style="color:#f92672">&amp;gt;&lt;/span>(), &lt;span style="color:#ae81ff">1500&lt;/span>);
+assert_eq&lt;span style="color:#f92672">!&lt;/span>(
+rbs.iter()
+.map(&lt;span style="color:#f92672">|&lt;/span>rb&lt;span style="color:#f92672">|&lt;/span> rb
+.column(&lt;span style="color:#ae81ff">0&lt;/span>)
+.as_any()
+.downcast_ref::&lt;span style="color:#f92672">&amp;lt;&lt;/span>Int32Array&lt;span style="color:#f92672">&amp;gt;&lt;/span>()
+.unwrap()
+.iter()
+.map(&lt;span style="color:#f92672">|&lt;/span>i&lt;span style="color:#f92672">|&lt;/span> i.unwrap())
+.sum::&lt;span style="color:#f92672">&amp;lt;&lt;/span>&lt;span style="color:#66d9ef">i32&lt;/span>&lt;span style="color:#f92672">&amp;gt;&lt;/span>())
+.sum::&lt;span style="color:#f92672">&amp;lt;&lt;/span>&lt;span style="color:#66d9ef">i32&lt;/span>&lt;span style="color:#f92672">&amp;gt;&lt;/span>(),
+&lt;span style="color:#ae81ff">4500&lt;/span>
+);
+Ok(())
+}
+&lt;/code>&lt;/pre>&lt;/div>&lt;p>可以看到，我们查询到 Arrow 格式的数据之后，还能通过 arrow-rs 中提供的其他能力做进一步的计算，十分方便。&lt;/p>
+&lt;h2 id="总结">总结&lt;/h2>
+&lt;p>本文主要介绍了 duckdb-rs 的设计和实现，笔者之前有一些开发 OLAP 数据的经验，但是对于 rust 算是新手，之前虽然写过一些但是没有深入学习，做这个项目也有一个目的是为了重新学习一下 rust。好在有 rusqlite 作为参考，所以没有碰到特别多语言层面的问题。&lt;/p>
+&lt;p>希望这篇文章对于其他对 rust 和数据库感兴趣的同学有一些帮助。同时这个库还有很多没解决的问题，比如支持更多的数据类型，支持连接池，支持更快的数据导入接口等等，我已经建了一些 issues，感兴趣的同学可以回复 &lt;a href="https://github.com/wangfenjin/duckdb-rs/issues">issue&lt;/a> 认领，我也会竭力提供需要的帮助，大家一起讨论和学习。&lt;/p>
+&lt;h2 id="参考">参考&lt;/h2>
+&lt;ul>
+&lt;li>duckdb 的官网：https://duckdb.org/&lt;/li>
+&lt;li>duckdb 的代码库：https://github.com/duckdb/duckdb&lt;/li>
+&lt;li>SQLite 的 rust 封装，duckdb-rs 也是基于它改的：https://github.com/rusqlite/rusqlite&lt;/li>
+&lt;li>duckdb-rs 的代码库：https://github.com/wangfenjin/duckdb-rs&lt;/li>
+&lt;li>Apache Arrow 的 rust 实现：https://github.com/apache/arrow-rs&lt;/li>
+&lt;/ul></content></item></channel></rss>

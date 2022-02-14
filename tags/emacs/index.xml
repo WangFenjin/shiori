@@ -5,4 +5,43 @@ SPC+p+p SPC+p+f SPC+p+t Search: SPC+s ripgrep
 SPC+* SPC+/ SPC+s+s Navigation: lsp
 Code: gd, SPC+j+i Buffer: SPC+b Window: SPC+w, ALT+num SPC+a Editing: vim evil
 Version Control: magit Shell: SPC+&amp;rsquo; eshell
-Help: SPC+?, SPC+h</description></item></channel></rss>
+Help: SPC+?, SPC+h</description><content>&lt;p>Intro video: &lt;a href="https://www.ixigua.com/i6803300850765660676/">https://www.ixigua.com/i6803300850765660676/&lt;/a>&lt;/p>
+&lt;p>What&amp;rsquo;s spacemacs?&lt;/p>
+&lt;ol>
+&lt;li>A emacs configuration framework&lt;/li>
+&lt;li>Support both emacs and vim editing styles&lt;/li>
+&lt;li>Great programming tool&lt;/li>
+&lt;/ol>
+&lt;h2 id="project-management-spcp">Project management: SPC+p&lt;/h2>
+&lt;p>projectile&lt;/p>
+&lt;ol>
+&lt;li>SPC+p+p&lt;/li>
+&lt;li>SPC+p+f&lt;/li>
+&lt;li>SPC+p+t&lt;/li>
+&lt;/ol>
+&lt;h2 id="search-spcs">Search: SPC+s&lt;/h2>
+&lt;p>ripgrep&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;ul>
+&lt;li>&lt;/li>
+&lt;/ul>
+&lt;/li>
+&lt;li>SPC+*&lt;/li>
+&lt;li>SPC+/&lt;/li>
+&lt;li>SPC+s+s&lt;/li>
+&lt;/ol>
+&lt;h2 id="navigation">Navigation:&lt;/h2>
+&lt;p>lsp&lt;/p>
+&lt;ol>
+&lt;li>Code: gd, SPC+j+i&lt;/li>
+&lt;li>Buffer: SPC+b&lt;/li>
+&lt;li>Window: SPC+w, ALT+num&lt;/li>
+&lt;li>SPC+a&lt;/li>
+&lt;/ol>
+&lt;h2 id="editing-vim">Editing: vim&lt;/h2>
+&lt;p>evil&lt;/p>
+&lt;h2 id="version-control-magit">Version Control: magit&lt;/h2>
+&lt;h2 id="shell-spc">Shell: SPC+&amp;rsquo;&lt;/h2>
+&lt;p>eshell&lt;/p>
+&lt;h2 id="help-spc-spch">Help: SPC+?, SPC+h&lt;/h2></content></item></channel></rss>
