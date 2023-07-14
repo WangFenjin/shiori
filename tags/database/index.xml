@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>database on Wang Fenjin</title><link>https://www.wangfenjin.com/tags/database/</link><description>Recent content in database on Wang Fenjin</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><copyright>Copyright © 2022 Wang Fenjin :: Powered by &lt;a href="http://gohugo.io">Hugo&lt;/a></copyright><lastBuildDate>Tue, 27 Jul 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://www.wangfenjin.com/tags/database/index.xml" rel="self" type="application/rss+xml"/><item><title>基于 apache-arrow 的 duckdb rust 客户端</title><link>https://www.wangfenjin.com/posts/duckdb-rs/</link><pubDate>Tue, 27 Jul 2021 00:00:00 +0000</pubDate><guid>https://www.wangfenjin.com/posts/duckdb-rs/</guid><description>背景 duckdb 是一个 C++ 编写的单机版嵌入式分析型数据库。它刚开源的时候是对标 SQLite 的列存数据库，并提供与 SQLite 一样的易用性，编译成一个头文件和一个 cpp 文件就可以在程序中使用，甚至提供与 SQLite 兼容的接口，因此受到了很多人的关注。
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>database on Wang Fenjin</title><link>https://www.wangfenjin.com/tags/database/</link><description>Recent content in database on Wang Fenjin</description><generator>Hugo -- gohugo.io</generator><language>en</language><copyright>Copyright © 2022 Wang Fenjin :: Powered by &lt;a href="http://gohugo.io">Hugo&lt;/a></copyright><lastBuildDate>Tue, 27 Jul 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://www.wangfenjin.com/tags/database/index.xml" rel="self" type="application/rss+xml"/><item><title>基于 apache-arrow 的 duckdb rust 客户端</title><link>https://www.wangfenjin.com/posts/duckdb-rs/</link><pubDate>Tue, 27 Jul 2021 00:00:00 +0000</pubDate><guid>https://www.wangfenjin.com/posts/duckdb-rs/</guid><description>背景 duckdb 是一个 C++ 编写的单机版嵌入式分析型数据库。它刚开源的时候是对标 SQLite 的列存数据库，并提供与 SQLite 一样的易用性，编译成一个头文件和一个 cpp 文件就可以在程序中使用，甚至提供与 SQLite 兼容的接口，因此受到了很多人的关注。
 本文介绍笔者近期开发的 duckdb-rs 库，让大家可以很方便地在 rust 代码库中使用 duckdb 的功能。
 libduckdb-sys 了解过 rust 的同学可能知道，rust 提供了 ffi 的方式与其他语言互通。因为 duckdb 本身是 C++ 编写的，想要在 rust 里面使用 duckdb，就需要考虑 ffi 的问题。而基于 ffi 对其他语言程序封装的基础库，一般会被命名为 libxxx-sys，这也就是 libduckdb-sys 的由来。
 为了方便大家使用，duckdb 提供了 C++ 原生接口，C 接口，以及与 SQLite3 兼容的 C 接口。我在做 libduckdb-sys 的时候对这三种接口都尝试过，相关的讨论可以参见 Rust Support，我这里介绍一下当时的情况。
@@ -40,77 +40,83 @@ libduckdb-sys 了解过 rust 的同学可能知道，rust 提供了 ffi 的方�
 &lt;p>完成了 libduckdb-sys 之后其实只是第一步，因为这样生成的代码都是 unsafe 代码，具体的使用例子可以参考 &lt;a href="https://github.com/wangfenjin/duckdb-rs/blob/main/libduckdb-sys/src/lib.rs">lib.rs&lt;/a> 中的测试代码。但是我们使用 rust 主要是为了他的安全性，rust 希望我们尽量减少 unsafe 的使用。所以一般的 rust 封装都会基于 libxxx-sys 提供一个内存安全的版本，这就是 duckdb-rs 的部分。&lt;/p>
 &lt;h3 id="小试牛刀">小试牛刀&lt;/h3>
 &lt;p>还是因为有 rusqlite 的参考，所以花了一些时间终于实现了最初始的版本，并且我已经把这个版本发布到 &lt;a href="https://crates.io/crates/duckdb">crates.io&lt;/a> 上了。这个版本的目标是基于 rusqlite 做最小的改动，并删掉 SQLite 特有的功能，让整个程序跑起来。完成之后效果不错，下面是文档中给的一个使用范例：&lt;/p>
-&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-rust" data-lang="rust">&lt;span style="color:#66d9ef">use&lt;/span> duckdb::{params, Connection, Result};
-&lt;span style="color:#75715e">#[&lt;/span>&lt;span style="color:#75715e">derive(Debug)&lt;/span>&lt;span style="color:#75715e">]&lt;/span>
-&lt;span style="color:#66d9ef">struct&lt;/span> &lt;span style="color:#a6e22e">Person&lt;/span> {
-id: &lt;span style="color:#66d9ef">i32&lt;/span>,
-name: String,
-data: Option&lt;span style="color:#f92672">&amp;lt;&lt;/span>Vec&lt;span style="color:#f92672">&amp;lt;&lt;/span>&lt;span style="color:#66d9ef">u8&lt;/span>&lt;span style="color:#f92672">&amp;gt;&lt;/span>&lt;span style="color:#f92672">&amp;gt;&lt;/span>,
-}
-&lt;span style="color:#66d9ef">fn&lt;/span> &lt;span style="color:#a6e22e">main&lt;/span>() -&amp;gt; Result&lt;span style="color:#f92672">&amp;lt;&lt;/span>()&lt;span style="color:#f92672">&amp;gt;&lt;/span> {
-&lt;span style="color:#66d9ef">let&lt;/span> conn &lt;span style="color:#f92672">=&lt;/span> Connection::open_in_memory()&lt;span style="color:#f92672">?&lt;/span>;
-conn.execute_batch(
-r&lt;span style="color:#960050;background-color:#1e0010">&amp;#34;&lt;/span>CREATE SEQUENCE seq;
-CREATE TABLE person (
-id INTEGER PRIMARY KEY DEFAULT NEXTVAL(&lt;span style="color:#a6e22e">&amp;#39;seq&lt;/span>&lt;span style="color:#960050;background-color:#1e0010">&amp;#39;&lt;/span>),
-name TEXT NOT NULL,
-data BLOB
-);
-&lt;span style="color:#960050;background-color:#1e0010">&amp;#34;&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>;
-&lt;span style="color:#66d9ef">let&lt;/span> me &lt;span style="color:#f92672">=&lt;/span> Person {
-id: &lt;span style="color:#ae81ff">0&lt;/span>,
-name: &lt;span style="color:#e6db74">&amp;#34;Steven&amp;#34;&lt;/span>.to_string(),
-data: None,
-};
-conn.execute(
-&lt;span style="color:#e6db74">&amp;#34;INSERT INTO person (name, data) VALUES (?, ?)&amp;#34;&lt;/span>,
-params&lt;span style="color:#f92672">!&lt;/span>[me.name, me.data],
-)&lt;span style="color:#f92672">?&lt;/span>;
-&lt;span style="color:#66d9ef">let&lt;/span> &lt;span style="color:#66d9ef">mut&lt;/span> stmt &lt;span style="color:#f92672">=&lt;/span> conn.prepare(&lt;span style="color:#e6db74">&amp;#34;SELECT id, name, data FROM person&amp;#34;&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>;
-&lt;span style="color:#66d9ef">let&lt;/span> person_iter &lt;span style="color:#f92672">=&lt;/span> stmt.query_map([], &lt;span style="color:#f92672">|&lt;/span>row&lt;span style="color:#f92672">|&lt;/span> {
-Ok(Person {
-id: &lt;span style="color:#a6e22e">row&lt;/span>.get(&lt;span style="color:#ae81ff">0&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>,
-name: &lt;span style="color:#a6e22e">row&lt;/span>.get(&lt;span style="color:#ae81ff">1&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>,
-data: &lt;span style="color:#a6e22e">row&lt;/span>.get(&lt;span style="color:#ae81ff">2&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>,
-})
-})&lt;span style="color:#f92672">?&lt;/span>;
-&lt;span style="color:#66d9ef">for&lt;/span> person &lt;span style="color:#66d9ef">in&lt;/span> person_iter {
-println&lt;span style="color:#f92672">!&lt;/span>(&lt;span style="color:#e6db74">&amp;#34;Found person {:?}&amp;#34;&lt;/span>, person.unwrap());
-}
-Ok(())
-}
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>可以看到，接口设计非常优雅，代码也非常符合 rust 的风格，使用上也非常方便。实现过程中发现有些 duckdb 的 C 接口还不支持的部分，我也通过提 issue 或者 PR 去解决了。这里必须要提一点，duckdb 的维护者非常耐心，不管是回答问题还是 review 代码都非常专业。&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-rust" data-lang="rust">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#66d9ef">use&lt;/span> duckdb::{params, Connection, Result};
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e">#[derive(Debug)]&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#66d9ef">struct&lt;/span> &lt;span style="color:#a6e22e">Person&lt;/span> {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> id: &lt;span style="color:#66d9ef">i32&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: String,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> data: Option&lt;span style="color:#f92672">&amp;lt;&lt;/span>Vec&lt;span style="color:#f92672">&amp;lt;&lt;/span>&lt;span style="color:#66d9ef">u8&lt;/span>&lt;span style="color:#f92672">&amp;gt;&amp;gt;&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#66d9ef">fn&lt;/span> &lt;span style="color:#a6e22e">main&lt;/span>() -&amp;gt; Result&lt;span style="color:#f92672">&amp;lt;&lt;/span>()&lt;span style="color:#f92672">&amp;gt;&lt;/span> {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#66d9ef">let&lt;/span> conn &lt;span style="color:#f92672">=&lt;/span> Connection::open_in_memory()&lt;span style="color:#f92672">?&lt;/span>;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> conn.execute_batch(
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#e6db74">r&lt;/span>&lt;span style="color:#e6db74">&amp;#34;CREATE SEQUENCE seq;
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#e6db74"> CREATE TABLE person (
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#e6db74"> id INTEGER PRIMARY KEY DEFAULT NEXTVAL(&amp;#39;seq&amp;#39;),
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#e6db74"> name TEXT NOT NULL,
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#e6db74"> data BLOB
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#e6db74"> );
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#e6db74"> &amp;#34;&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#66d9ef">let&lt;/span> me &lt;span style="color:#f92672">=&lt;/span> Person {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> id: &lt;span style="color:#ae81ff">0&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: &lt;span style="color:#e6db74">&amp;#34;Steven&amp;#34;&lt;/span>.to_string(),
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> data: None,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> };
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> conn.execute(
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#e6db74">&amp;#34;INSERT INTO person (name, data) VALUES (?, ?)&amp;#34;&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> params![me.name, me.data],
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> )&lt;span style="color:#f92672">?&lt;/span>;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#66d9ef">let&lt;/span> &lt;span style="color:#66d9ef">mut&lt;/span> stmt &lt;span style="color:#f92672">=&lt;/span> conn.prepare(&lt;span style="color:#e6db74">&amp;#34;SELECT id, name, data FROM person&amp;#34;&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#66d9ef">let&lt;/span> person_iter &lt;span style="color:#f92672">=&lt;/span> stmt.query_map([], &lt;span style="color:#f92672">|&lt;/span>row&lt;span style="color:#f92672">|&lt;/span> {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Ok(Person {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> id: &lt;span style="color:#a6e22e">row&lt;/span>.get(&lt;span style="color:#ae81ff">0&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: &lt;span style="color:#a6e22e">row&lt;/span>.get(&lt;span style="color:#ae81ff">1&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> data: &lt;span style="color:#a6e22e">row&lt;/span>.get(&lt;span style="color:#ae81ff">2&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> })
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> })&lt;span style="color:#f92672">?&lt;/span>;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#66d9ef">for&lt;/span> person &lt;span style="color:#66d9ef">in&lt;/span> person_iter {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> println!(&lt;span style="color:#e6db74">&amp;#34;Found person &lt;/span>&lt;span style="color:#e6db74">{:?}&lt;/span>&lt;span style="color:#e6db74">&amp;#34;&lt;/span>, person.unwrap());
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> }
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Ok(())
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>可以看到，接口设计非常优雅，代码也非常符合 rust 的风格，使用上也非常方便。实现过程中发现有些 duckdb 的 C 接口还不支持的部分，我也通过提 issue 或者 PR 去解决了。这里必须要提一点，duckdb 的维护者非常耐心，不管是回答问题还是 review 代码都非常专业。&lt;/p>
 &lt;p>剩下的问题有一个是之前提到的，duckdb 是静态类型的数据，所以需要支持很多数据类型，这里面工作量不小。另外，因为我之前也有关注 &lt;a href="https://arrow.apache.org/">Apache Arrow&lt;/a>，做过 OLAP 数据库的同学可能知道，Apache Arrow 是一个通用的列式内存格式，方便在内存中做大数据量的计算或者传输，有很多 OLAP 数据引擎都在用。刚好 duckdb 也支持 arrow 格式，所以就想尝试使用 arrow 格式来查询数据，这样至少有两个好处，一个是这样我们就可以暴露 arrow 格式的数据给用户，在使用的时候就可以用上 arrow 生态的其他功能，有可能会产生一些化学反应；另外 arrow 也是有丰富的数据类型和明确的定义，反正我们是要支持很多数据类型的，现在的 C 接口本身也不完善，用 arrow 格式反而更加清晰。&lt;/p>
 &lt;h3 id="通过-apache-arrow-查询数据">通过 Apache Arrow 查询数据&lt;/h3>
 &lt;p>基于上面的考虑，我把目标又看向了 &lt;a href="https://github.com/apache/arrow-rs">arrow-rs&lt;/a>，并给 duckdb 的 C 接口也加上了 &lt;a href="https://github.com/duckdb/duckdb/pull/1978">arrow 的功能&lt;/a>，最终在 duckdb-rs 中实现了通过 Arrow 格式来查询数据，实现参见 &lt;a href="https://github.com/wangfenjin/duckdb-rs/pull/8">这里&lt;/a>。&lt;/p>
 &lt;p>实现之后，之前通过行来读取数据的接口完全不变，还能直接查询到 Arrow 格式的数据，下面是一个测试的例子：&lt;/p>
-&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-rust" data-lang="rust">&lt;span style="color:#66d9ef">fn&lt;/span> &lt;span style="color:#a6e22e">test_query_arrow_record_batch_large&lt;/span>() -&amp;gt; Result&lt;span style="color:#f92672">&amp;lt;&lt;/span>()&lt;span style="color:#f92672">&amp;gt;&lt;/span> {
-&lt;span style="color:#66d9ef">let&lt;/span> db &lt;span style="color:#f92672">=&lt;/span> Connection::open_in_memory().unwrap();
-db.execute_batch(&lt;span style="color:#e6db74">&amp;#34;BEGIN TRANSACTION&amp;#34;&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>;
-db.execute_batch(&lt;span style="color:#e6db74">&amp;#34;CREATE TABLE test(t INTEGER);&amp;#34;&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>;
-&lt;span style="color:#66d9ef">for&lt;/span> _ &lt;span style="color:#66d9ef">in&lt;/span> &lt;span style="color:#ae81ff">0&lt;/span>..&lt;span style="color:#ae81ff">300&lt;/span> {
-db.execute_batch(&lt;span style="color:#e6db74">&amp;#34;INSERT INTO test VALUES (1); INSERT INTO test VALUES (2); INSERT INTO test VALUES (3); INSERT INTO test VALUES (4); INSERT INTO test VALUES (5);&amp;#34;&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>;
-}
-db.execute_batch(&lt;span style="color:#e6db74">&amp;#34;END TRANSACTION&amp;#34;&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>;
-&lt;span style="color:#66d9ef">let&lt;/span> rbs &lt;span style="color:#f92672">=&lt;/span> db.query_arrow(&lt;span style="color:#e6db74">&amp;#34;select t from test order by t&amp;#34;&lt;/span>, [])&lt;span style="color:#f92672">?&lt;/span>;
-assert_eq&lt;span style="color:#f92672">!&lt;/span>(rbs.len(), &lt;span style="color:#ae81ff">2&lt;/span>);
-assert_eq&lt;span style="color:#f92672">!&lt;/span>(rbs.iter().map(&lt;span style="color:#f92672">|&lt;/span>rb&lt;span style="color:#f92672">|&lt;/span> rb.num_rows()).sum::&lt;span style="color:#f92672">&amp;lt;&lt;/span>&lt;span style="color:#66d9ef">usize&lt;/span>&lt;span style="color:#f92672">&amp;gt;&lt;/span>(), &lt;span style="color:#ae81ff">1500&lt;/span>);
-assert_eq&lt;span style="color:#f92672">!&lt;/span>(
-rbs.iter()
-.map(&lt;span style="color:#f92672">|&lt;/span>rb&lt;span style="color:#f92672">|&lt;/span> rb
-.column(&lt;span style="color:#ae81ff">0&lt;/span>)
-.as_any()
-.downcast_ref::&lt;span style="color:#f92672">&amp;lt;&lt;/span>Int32Array&lt;span style="color:#f92672">&amp;gt;&lt;/span>()
-.unwrap()
-.iter()
-.map(&lt;span style="color:#f92672">|&lt;/span>i&lt;span style="color:#f92672">|&lt;/span> i.unwrap())
-.sum::&lt;span style="color:#f92672">&amp;lt;&lt;/span>&lt;span style="color:#66d9ef">i32&lt;/span>&lt;span style="color:#f92672">&amp;gt;&lt;/span>())
-.sum::&lt;span style="color:#f92672">&amp;lt;&lt;/span>&lt;span style="color:#66d9ef">i32&lt;/span>&lt;span style="color:#f92672">&amp;gt;&lt;/span>(),
-&lt;span style="color:#ae81ff">4500&lt;/span>
-);
-Ok(())
-}
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>可以看到，我们查询到 Arrow 格式的数据之后，还能通过 arrow-rs 中提供的其他能力做进一步的计算，十分方便。&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-rust" data-lang="rust">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#66d9ef">fn&lt;/span> &lt;span style="color:#a6e22e">test_query_arrow_record_batch_large&lt;/span>() -&amp;gt; Result&lt;span style="color:#f92672">&amp;lt;&lt;/span>()&lt;span style="color:#f92672">&amp;gt;&lt;/span> {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#66d9ef">let&lt;/span> db &lt;span style="color:#f92672">=&lt;/span> Connection::open_in_memory().unwrap();
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> db.execute_batch(&lt;span style="color:#e6db74">&amp;#34;BEGIN TRANSACTION&amp;#34;&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> db.execute_batch(&lt;span style="color:#e6db74">&amp;#34;CREATE TABLE test(t INTEGER);&amp;#34;&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#66d9ef">for&lt;/span> _ &lt;span style="color:#66d9ef">in&lt;/span> &lt;span style="color:#ae81ff">0&lt;/span>&lt;span style="color:#f92672">..&lt;/span>&lt;span style="color:#ae81ff">300&lt;/span> {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> db.execute_batch(&lt;span style="color:#e6db74">&amp;#34;INSERT INTO test VALUES (1); INSERT INTO test VALUES (2); INSERT INTO test VALUES (3); INSERT INTO test VALUES (4); INSERT INTO test VALUES (5);&amp;#34;&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> }
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> db.execute_batch(&lt;span style="color:#e6db74">&amp;#34;END TRANSACTION&amp;#34;&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#66d9ef">let&lt;/span> rbs &lt;span style="color:#f92672">=&lt;/span> db.query_arrow(&lt;span style="color:#e6db74">&amp;#34;select t from test order by t&amp;#34;&lt;/span>, [])&lt;span style="color:#f92672">?&lt;/span>;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> assert_eq!(rbs.len(), &lt;span style="color:#ae81ff">2&lt;/span>);
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> assert_eq!(rbs.iter().map(&lt;span style="color:#f92672">|&lt;/span>rb&lt;span style="color:#f92672">|&lt;/span> rb.num_rows()).sum::&lt;span style="color:#f92672">&amp;lt;&lt;/span>&lt;span style="color:#66d9ef">usize&lt;/span>&lt;span style="color:#f92672">&amp;gt;&lt;/span>(), &lt;span style="color:#ae81ff">1500&lt;/span>);
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> assert_eq!(
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> rbs.iter()
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> .map(&lt;span style="color:#f92672">|&lt;/span>rb&lt;span style="color:#f92672">|&lt;/span> rb
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> .column(&lt;span style="color:#ae81ff">0&lt;/span>)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> .as_any()
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> .downcast_ref::&lt;span style="color:#f92672">&amp;lt;&lt;/span>Int32Array&lt;span style="color:#f92672">&amp;gt;&lt;/span>()
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> .unwrap()
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> .iter()
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> .map(&lt;span style="color:#f92672">|&lt;/span>i&lt;span style="color:#f92672">|&lt;/span> i.unwrap())
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> .sum::&lt;span style="color:#f92672">&amp;lt;&lt;/span>&lt;span style="color:#66d9ef">i32&lt;/span>&lt;span style="color:#f92672">&amp;gt;&lt;/span>())
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> .sum::&lt;span style="color:#f92672">&amp;lt;&lt;/span>&lt;span style="color:#66d9ef">i32&lt;/span>&lt;span style="color:#f92672">&amp;gt;&lt;/span>(),
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#ae81ff">4500&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> );
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Ok(())
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>可以看到，我们查询到 Arrow 格式的数据之后，还能通过 arrow-rs 中提供的其他能力做进一步的计算，十分方便。&lt;/p>
 &lt;h2 id="总结">总结&lt;/h2>
 &lt;p>本文主要介绍了 duckdb-rs 的设计和实现，笔者之前有一些开发 OLAP 数据的经验，但是对于 rust 算是新手，之前虽然写过一些但是没有深入学习，做这个项目也有一个目的是为了重新学习一下 rust。好在有 rusqlite 作为参考，所以没有碰到特别多语言层面的问题。&lt;/p>
 &lt;p>希望这篇文章对于其他对 rust 和数据库感兴趣的同学有一些帮助。同时这个库还有很多没解决的问题，比如支持更多的数据类型，支持连接池，支持更快的数据导入接口等等，我已经建了一些 issues，感兴趣的同学可以回复 &lt;a href="https://github.com/wangfenjin/duckdb-rs/issues">issue&lt;/a> 认领，我也会竭力提供需要的帮助，大家一起讨论和学习。&lt;/p>

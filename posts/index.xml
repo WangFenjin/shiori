@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Posts on Wang Fenjin</title><link>https://www.wangfenjin.com/posts/</link><description>Recent content in Posts on Wang Fenjin</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><copyright>Copyright © 2022 Wang Fenjin :: Powered by &lt;a href="http://gohugo.io">Hugo&lt;/a></copyright><lastBuildDate>Tue, 27 Jul 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://www.wangfenjin.com/posts/index.xml" rel="self" type="application/rss+xml"/><item><title>基于 apache-arrow 的 duckdb rust 客户端</title><link>https://www.wangfenjin.com/posts/duckdb-rs/</link><pubDate>Tue, 27 Jul 2021 00:00:00 +0000</pubDate><guid>https://www.wangfenjin.com/posts/duckdb-rs/</guid><description>背景 duckdb 是一个 C++ 编写的单机版嵌入式分析型数据库。它刚开源的时候是对标 SQLite 的列存数据库，并提供与 SQLite 一样的易用性，编译成一个头文件和一个 cpp 文件就可以在程序中使用，甚至提供与 SQLite 兼容的接口，因此受到了很多人的关注。
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>Posts on Wang Fenjin</title><link>https://www.wangfenjin.com/posts/</link><description>Recent content in Posts on Wang Fenjin</description><generator>Hugo -- gohugo.io</generator><language>en</language><copyright>Copyright © 2022 Wang Fenjin :: Powered by &lt;a href="http://gohugo.io">Hugo&lt;/a></copyright><lastBuildDate>Tue, 27 Jul 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://www.wangfenjin.com/posts/index.xml" rel="self" type="application/rss+xml"/><item><title>基于 apache-arrow 的 duckdb rust 客户端</title><link>https://www.wangfenjin.com/posts/duckdb-rs/</link><pubDate>Tue, 27 Jul 2021 00:00:00 +0000</pubDate><guid>https://www.wangfenjin.com/posts/duckdb-rs/</guid><description>背景 duckdb 是一个 C++ 编写的单机版嵌入式分析型数据库。它刚开源的时候是对标 SQLite 的列存数据库，并提供与 SQLite 一样的易用性，编译成一个头文件和一个 cpp 文件就可以在程序中使用，甚至提供与 SQLite 兼容的接口，因此受到了很多人的关注。
 本文介绍笔者近期开发的 duckdb-rs 库，让大家可以很方便地在 rust 代码库中使用 duckdb 的功能。
 libduckdb-sys 了解过 rust 的同学可能知道，rust 提供了 ffi 的方式与其他语言互通。因为 duckdb 本身是 C++ 编写的，想要在 rust 里面使用 duckdb，就需要考虑 ffi 的问题。而基于 ffi 对其他语言程序封装的基础库，一般会被命名为 libxxx-sys，这也就是 libduckdb-sys 的由来。
 为了方便大家使用，duckdb 提供了 C++ 原生接口，C 接口，以及与 SQLite3 兼容的 C 接口。我在做 libduckdb-sys 的时候对这三种接口都尝试过，相关的讨论可以参见 Rust Support，我这里介绍一下当时的情况。
@@ -40,77 +40,83 @@ libduckdb-sys 了解过 rust 的同学可能知道，rust 提供了 ffi 的方�
 &lt;p>完成了 libduckdb-sys 之后其实只是第一步，因为这样生成的代码都是 unsafe 代码，具体的使用例子可以参考 &lt;a href="https://github.com/wangfenjin/duckdb-rs/blob/main/libduckdb-sys/src/lib.rs">lib.rs&lt;/a> 中的测试代码。但是我们使用 rust 主要是为了他的安全性，rust 希望我们尽量减少 unsafe 的使用。所以一般的 rust 封装都会基于 libxxx-sys 提供一个内存安全的版本，这就是 duckdb-rs 的部分。&lt;/p>
 &lt;h3 id="小试牛刀">小试牛刀&lt;/h3>
 &lt;p>还是因为有 rusqlite 的参考，所以花了一些时间终于实现了最初始的版本，并且我已经把这个版本发布到 &lt;a href="https://crates.io/crates/duckdb">crates.io&lt;/a> 上了。这个版本的目标是基于 rusqlite 做最小的改动，并删掉 SQLite 特有的功能，让整个程序跑起来。完成之后效果不错，下面是文档中给的一个使用范例：&lt;/p>
-&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-rust" data-lang="rust">&lt;span style="color:#66d9ef">use&lt;/span> duckdb::{params, Connection, Result};
-&lt;span style="color:#75715e">#[&lt;/span>&lt;span style="color:#75715e">derive(Debug)&lt;/span>&lt;span style="color:#75715e">]&lt;/span>
-&lt;span style="color:#66d9ef">struct&lt;/span> &lt;span style="color:#a6e22e">Person&lt;/span> {
-id: &lt;span style="color:#66d9ef">i32&lt;/span>,
-name: String,
-data: Option&lt;span style="color:#f92672">&amp;lt;&lt;/span>Vec&lt;span style="color:#f92672">&amp;lt;&lt;/span>&lt;span style="color:#66d9ef">u8&lt;/span>&lt;span style="color:#f92672">&amp;gt;&lt;/span>&lt;span style="color:#f92672">&amp;gt;&lt;/span>,
-}
-&lt;span style="color:#66d9ef">fn&lt;/span> &lt;span style="color:#a6e22e">main&lt;/span>() -&amp;gt; Result&lt;span style="color:#f92672">&amp;lt;&lt;/span>()&lt;span style="color:#f92672">&amp;gt;&lt;/span> {
-&lt;span style="color:#66d9ef">let&lt;/span> conn &lt;span style="color:#f92672">=&lt;/span> Connection::open_in_memory()&lt;span style="color:#f92672">?&lt;/span>;
-conn.execute_batch(
-r&lt;span style="color:#960050;background-color:#1e0010">&amp;#34;&lt;/span>CREATE SEQUENCE seq;
-CREATE TABLE person (
-id INTEGER PRIMARY KEY DEFAULT NEXTVAL(&lt;span style="color:#a6e22e">&amp;#39;seq&lt;/span>&lt;span style="color:#960050;background-color:#1e0010">&amp;#39;&lt;/span>),
-name TEXT NOT NULL,
-data BLOB
-);
-&lt;span style="color:#960050;background-color:#1e0010">&amp;#34;&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>;
-&lt;span style="color:#66d9ef">let&lt;/span> me &lt;span style="color:#f92672">=&lt;/span> Person {
-id: &lt;span style="color:#ae81ff">0&lt;/span>,
-name: &lt;span style="color:#e6db74">&amp;#34;Steven&amp;#34;&lt;/span>.to_string(),
-data: None,
-};
-conn.execute(
-&lt;span style="color:#e6db74">&amp;#34;INSERT INTO person (name, data) VALUES (?, ?)&amp;#34;&lt;/span>,
-params&lt;span style="color:#f92672">!&lt;/span>[me.name, me.data],
-)&lt;span style="color:#f92672">?&lt;/span>;
-&lt;span style="color:#66d9ef">let&lt;/span> &lt;span style="color:#66d9ef">mut&lt;/span> stmt &lt;span style="color:#f92672">=&lt;/span> conn.prepare(&lt;span style="color:#e6db74">&amp;#34;SELECT id, name, data FROM person&amp;#34;&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>;
-&lt;span style="color:#66d9ef">let&lt;/span> person_iter &lt;span style="color:#f92672">=&lt;/span> stmt.query_map([], &lt;span style="color:#f92672">|&lt;/span>row&lt;span style="color:#f92672">|&lt;/span> {
-Ok(Person {
-id: &lt;span style="color:#a6e22e">row&lt;/span>.get(&lt;span style="color:#ae81ff">0&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>,
-name: &lt;span style="color:#a6e22e">row&lt;/span>.get(&lt;span style="color:#ae81ff">1&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>,
-data: &lt;span style="color:#a6e22e">row&lt;/span>.get(&lt;span style="color:#ae81ff">2&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>,
-})
-})&lt;span style="color:#f92672">?&lt;/span>;
-&lt;span style="color:#66d9ef">for&lt;/span> person &lt;span style="color:#66d9ef">in&lt;/span> person_iter {
-println&lt;span style="color:#f92672">!&lt;/span>(&lt;span style="color:#e6db74">&amp;#34;Found person {:?}&amp;#34;&lt;/span>, person.unwrap());
-}
-Ok(())
-}
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>可以看到，接口设计非常优雅，代码也非常符合 rust 的风格，使用上也非常方便。实现过程中发现有些 duckdb 的 C 接口还不支持的部分，我也通过提 issue 或者 PR 去解决了。这里必须要提一点，duckdb 的维护者非常耐心，不管是回答问题还是 review 代码都非常专业。&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-rust" data-lang="rust">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#66d9ef">use&lt;/span> duckdb::{params, Connection, Result};
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e">#[derive(Debug)]&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#66d9ef">struct&lt;/span> &lt;span style="color:#a6e22e">Person&lt;/span> {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> id: &lt;span style="color:#66d9ef">i32&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: String,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> data: Option&lt;span style="color:#f92672">&amp;lt;&lt;/span>Vec&lt;span style="color:#f92672">&amp;lt;&lt;/span>&lt;span style="color:#66d9ef">u8&lt;/span>&lt;span style="color:#f92672">&amp;gt;&amp;gt;&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#66d9ef">fn&lt;/span> &lt;span style="color:#a6e22e">main&lt;/span>() -&amp;gt; Result&lt;span style="color:#f92672">&amp;lt;&lt;/span>()&lt;span style="color:#f92672">&amp;gt;&lt;/span> {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#66d9ef">let&lt;/span> conn &lt;span style="color:#f92672">=&lt;/span> Connection::open_in_memory()&lt;span style="color:#f92672">?&lt;/span>;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> conn.execute_batch(
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#e6db74">r&lt;/span>&lt;span style="color:#e6db74">&amp;#34;CREATE SEQUENCE seq;
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#e6db74"> CREATE TABLE person (
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#e6db74"> id INTEGER PRIMARY KEY DEFAULT NEXTVAL(&amp;#39;seq&amp;#39;),
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#e6db74"> name TEXT NOT NULL,
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#e6db74"> data BLOB
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#e6db74"> );
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#e6db74"> &amp;#34;&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#66d9ef">let&lt;/span> me &lt;span style="color:#f92672">=&lt;/span> Person {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> id: &lt;span style="color:#ae81ff">0&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: &lt;span style="color:#e6db74">&amp;#34;Steven&amp;#34;&lt;/span>.to_string(),
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> data: None,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> };
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> conn.execute(
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#e6db74">&amp;#34;INSERT INTO person (name, data) VALUES (?, ?)&amp;#34;&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> params![me.name, me.data],
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> )&lt;span style="color:#f92672">?&lt;/span>;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#66d9ef">let&lt;/span> &lt;span style="color:#66d9ef">mut&lt;/span> stmt &lt;span style="color:#f92672">=&lt;/span> conn.prepare(&lt;span style="color:#e6db74">&amp;#34;SELECT id, name, data FROM person&amp;#34;&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#66d9ef">let&lt;/span> person_iter &lt;span style="color:#f92672">=&lt;/span> stmt.query_map([], &lt;span style="color:#f92672">|&lt;/span>row&lt;span style="color:#f92672">|&lt;/span> {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Ok(Person {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> id: &lt;span style="color:#a6e22e">row&lt;/span>.get(&lt;span style="color:#ae81ff">0&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> name: &lt;span style="color:#a6e22e">row&lt;/span>.get(&lt;span style="color:#ae81ff">1&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> data: &lt;span style="color:#a6e22e">row&lt;/span>.get(&lt;span style="color:#ae81ff">2&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>,
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> })
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> })&lt;span style="color:#f92672">?&lt;/span>;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#66d9ef">for&lt;/span> person &lt;span style="color:#66d9ef">in&lt;/span> person_iter {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> println!(&lt;span style="color:#e6db74">&amp;#34;Found person &lt;/span>&lt;span style="color:#e6db74">{:?}&lt;/span>&lt;span style="color:#e6db74">&amp;#34;&lt;/span>, person.unwrap());
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> }
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Ok(())
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>可以看到，接口设计非常优雅，代码也非常符合 rust 的风格，使用上也非常方便。实现过程中发现有些 duckdb 的 C 接口还不支持的部分，我也通过提 issue 或者 PR 去解决了。这里必须要提一点，duckdb 的维护者非常耐心，不管是回答问题还是 review 代码都非常专业。&lt;/p>
 &lt;p>剩下的问题有一个是之前提到的，duckdb 是静态类型的数据，所以需要支持很多数据类型，这里面工作量不小。另外，因为我之前也有关注 &lt;a href="https://arrow.apache.org/">Apache Arrow&lt;/a>，做过 OLAP 数据库的同学可能知道，Apache Arrow 是一个通用的列式内存格式，方便在内存中做大数据量的计算或者传输，有很多 OLAP 数据引擎都在用。刚好 duckdb 也支持 arrow 格式，所以就想尝试使用 arrow 格式来查询数据，这样至少有两个好处，一个是这样我们就可以暴露 arrow 格式的数据给用户，在使用的时候就可以用上 arrow 生态的其他功能，有可能会产生一些化学反应；另外 arrow 也是有丰富的数据类型和明确的定义，反正我们是要支持很多数据类型的，现在的 C 接口本身也不完善，用 arrow 格式反而更加清晰。&lt;/p>
 &lt;h3 id="通过-apache-arrow-查询数据">通过 Apache Arrow 查询数据&lt;/h3>
 &lt;p>基于上面的考虑，我把目标又看向了 &lt;a href="https://github.com/apache/arrow-rs">arrow-rs&lt;/a>，并给 duckdb 的 C 接口也加上了 &lt;a href="https://github.com/duckdb/duckdb/pull/1978">arrow 的功能&lt;/a>，最终在 duckdb-rs 中实现了通过 Arrow 格式来查询数据，实现参见 &lt;a href="https://github.com/wangfenjin/duckdb-rs/pull/8">这里&lt;/a>。&lt;/p>
 &lt;p>实现之后，之前通过行来读取数据的接口完全不变，还能直接查询到 Arrow 格式的数据，下面是一个测试的例子：&lt;/p>
-&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-rust" data-lang="rust">&lt;span style="color:#66d9ef">fn&lt;/span> &lt;span style="color:#a6e22e">test_query_arrow_record_batch_large&lt;/span>() -&amp;gt; Result&lt;span style="color:#f92672">&amp;lt;&lt;/span>()&lt;span style="color:#f92672">&amp;gt;&lt;/span> {
-&lt;span style="color:#66d9ef">let&lt;/span> db &lt;span style="color:#f92672">=&lt;/span> Connection::open_in_memory().unwrap();
-db.execute_batch(&lt;span style="color:#e6db74">&amp;#34;BEGIN TRANSACTION&amp;#34;&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>;
-db.execute_batch(&lt;span style="color:#e6db74">&amp;#34;CREATE TABLE test(t INTEGER);&amp;#34;&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>;
-&lt;span style="color:#66d9ef">for&lt;/span> _ &lt;span style="color:#66d9ef">in&lt;/span> &lt;span style="color:#ae81ff">0&lt;/span>..&lt;span style="color:#ae81ff">300&lt;/span> {
-db.execute_batch(&lt;span style="color:#e6db74">&amp;#34;INSERT INTO test VALUES (1); INSERT INTO test VALUES (2); INSERT INTO test VALUES (3); INSERT INTO test VALUES (4); INSERT INTO test VALUES (5);&amp;#34;&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>;
-}
-db.execute_batch(&lt;span style="color:#e6db74">&amp;#34;END TRANSACTION&amp;#34;&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>;
-&lt;span style="color:#66d9ef">let&lt;/span> rbs &lt;span style="color:#f92672">=&lt;/span> db.query_arrow(&lt;span style="color:#e6db74">&amp;#34;select t from test order by t&amp;#34;&lt;/span>, [])&lt;span style="color:#f92672">?&lt;/span>;
-assert_eq&lt;span style="color:#f92672">!&lt;/span>(rbs.len(), &lt;span style="color:#ae81ff">2&lt;/span>);
-assert_eq&lt;span style="color:#f92672">!&lt;/span>(rbs.iter().map(&lt;span style="color:#f92672">|&lt;/span>rb&lt;span style="color:#f92672">|&lt;/span> rb.num_rows()).sum::&lt;span style="color:#f92672">&amp;lt;&lt;/span>&lt;span style="color:#66d9ef">usize&lt;/span>&lt;span style="color:#f92672">&amp;gt;&lt;/span>(), &lt;span style="color:#ae81ff">1500&lt;/span>);
-assert_eq&lt;span style="color:#f92672">!&lt;/span>(
-rbs.iter()
-.map(&lt;span style="color:#f92672">|&lt;/span>rb&lt;span style="color:#f92672">|&lt;/span> rb
-.column(&lt;span style="color:#ae81ff">0&lt;/span>)
-.as_any()
-.downcast_ref::&lt;span style="color:#f92672">&amp;lt;&lt;/span>Int32Array&lt;span style="color:#f92672">&amp;gt;&lt;/span>()
-.unwrap()
-.iter()
-.map(&lt;span style="color:#f92672">|&lt;/span>i&lt;span style="color:#f92672">|&lt;/span> i.unwrap())
-.sum::&lt;span style="color:#f92672">&amp;lt;&lt;/span>&lt;span style="color:#66d9ef">i32&lt;/span>&lt;span style="color:#f92672">&amp;gt;&lt;/span>())
-.sum::&lt;span style="color:#f92672">&amp;lt;&lt;/span>&lt;span style="color:#66d9ef">i32&lt;/span>&lt;span style="color:#f92672">&amp;gt;&lt;/span>(),
-&lt;span style="color:#ae81ff">4500&lt;/span>
-);
-Ok(())
-}
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>可以看到，我们查询到 Arrow 格式的数据之后，还能通过 arrow-rs 中提供的其他能力做进一步的计算，十分方便。&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-rust" data-lang="rust">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#66d9ef">fn&lt;/span> &lt;span style="color:#a6e22e">test_query_arrow_record_batch_large&lt;/span>() -&amp;gt; Result&lt;span style="color:#f92672">&amp;lt;&lt;/span>()&lt;span style="color:#f92672">&amp;gt;&lt;/span> {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#66d9ef">let&lt;/span> db &lt;span style="color:#f92672">=&lt;/span> Connection::open_in_memory().unwrap();
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> db.execute_batch(&lt;span style="color:#e6db74">&amp;#34;BEGIN TRANSACTION&amp;#34;&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> db.execute_batch(&lt;span style="color:#e6db74">&amp;#34;CREATE TABLE test(t INTEGER);&amp;#34;&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#66d9ef">for&lt;/span> _ &lt;span style="color:#66d9ef">in&lt;/span> &lt;span style="color:#ae81ff">0&lt;/span>&lt;span style="color:#f92672">..&lt;/span>&lt;span style="color:#ae81ff">300&lt;/span> {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> db.execute_batch(&lt;span style="color:#e6db74">&amp;#34;INSERT INTO test VALUES (1); INSERT INTO test VALUES (2); INSERT INTO test VALUES (3); INSERT INTO test VALUES (4); INSERT INTO test VALUES (5);&amp;#34;&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> }
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> db.execute_batch(&lt;span style="color:#e6db74">&amp;#34;END TRANSACTION&amp;#34;&lt;/span>)&lt;span style="color:#f92672">?&lt;/span>;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#66d9ef">let&lt;/span> rbs &lt;span style="color:#f92672">=&lt;/span> db.query_arrow(&lt;span style="color:#e6db74">&amp;#34;select t from test order by t&amp;#34;&lt;/span>, [])&lt;span style="color:#f92672">?&lt;/span>;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> assert_eq!(rbs.len(), &lt;span style="color:#ae81ff">2&lt;/span>);
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> assert_eq!(rbs.iter().map(&lt;span style="color:#f92672">|&lt;/span>rb&lt;span style="color:#f92672">|&lt;/span> rb.num_rows()).sum::&lt;span style="color:#f92672">&amp;lt;&lt;/span>&lt;span style="color:#66d9ef">usize&lt;/span>&lt;span style="color:#f92672">&amp;gt;&lt;/span>(), &lt;span style="color:#ae81ff">1500&lt;/span>);
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> assert_eq!(
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> rbs.iter()
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> .map(&lt;span style="color:#f92672">|&lt;/span>rb&lt;span style="color:#f92672">|&lt;/span> rb
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> .column(&lt;span style="color:#ae81ff">0&lt;/span>)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> .as_any()
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> .downcast_ref::&lt;span style="color:#f92672">&amp;lt;&lt;/span>Int32Array&lt;span style="color:#f92672">&amp;gt;&lt;/span>()
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> .unwrap()
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> .iter()
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> .map(&lt;span style="color:#f92672">|&lt;/span>i&lt;span style="color:#f92672">|&lt;/span> i.unwrap())
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> .sum::&lt;span style="color:#f92672">&amp;lt;&lt;/span>&lt;span style="color:#66d9ef">i32&lt;/span>&lt;span style="color:#f92672">&amp;gt;&lt;/span>())
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> .sum::&lt;span style="color:#f92672">&amp;lt;&lt;/span>&lt;span style="color:#66d9ef">i32&lt;/span>&lt;span style="color:#f92672">&amp;gt;&lt;/span>(),
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#ae81ff">4500&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> );
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> Ok(())
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>可以看到，我们查询到 Arrow 格式的数据之后，还能通过 arrow-rs 中提供的其他能力做进一步的计算，十分方便。&lt;/p>
 &lt;h2 id="总结">总结&lt;/h2>
 &lt;p>本文主要介绍了 duckdb-rs 的设计和实现，笔者之前有一些开发 OLAP 数据的经验，但是对于 rust 算是新手，之前虽然写过一些但是没有深入学习，做这个项目也有一个目的是为了重新学习一下 rust。好在有 rusqlite 作为参考，所以没有碰到特别多语言层面的问题。&lt;/p>
 &lt;p>希望这篇文章对于其他对 rust 和数据库感兴趣的同学有一些帮助。同时这个库还有很多没解决的问题，比如支持更多的数据类型，支持连接池，支持更快的数据导入接口等等，我已经建了一些 issues，感兴趣的同学可以回复 &lt;a href="https://github.com/wangfenjin/duckdb-rs/issues">issue&lt;/a> 认领，我也会竭力提供需要的帮助，大家一起讨论和学习。&lt;/p>
@@ -184,13 +190,15 @@ Ok(())
 &lt;p>对于 xeus-clickhouse 未来的规划是，先打磨好稳定性，目前已知的还有一个非法字符导致内核崩溃的问题，已经提交 issue 给 xeus 仓库；另外clickhouse-cpp 不支持 ssl 连接。除了基础功能的打磨，还计划通过支持更多的 jupyter magic 来实现数据的可视化渲染，提供更方便的数据可视化能力。&lt;/p>
 &lt;h2 id="使用">使用&lt;/h2>
 &lt;p>我制作了一个 Docker 镜像发布在 &lt;a href="https://hub.docker.com/r/wangfenjin/xeus-clickhouse">docker-hub&lt;/a>，不需要安装任何环境就可以试用：&lt;/p>
-&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-bash" data-lang="bash">&lt;span style="color:#75715e"># start jupyter with clickhouse kernal&lt;/span>
-docker run -p 8888:8888 wangfenjin/xeus-clickhouse:v0.1.0
-&lt;span style="color:#75715e"># start a local clickhouse for testing&lt;/span>
-docker run -d --name jupyter-clickhouse-server -p 8123:8123 --ulimit nofile&lt;span style="color:#f92672">=&lt;/span>262144:262144 yandex/clickhouse-server
-&lt;span style="color:#75715e"># open the example/clickhouse.ipynb and connect to local server by&lt;/span>
-&lt;span style="color:#75715e"># %CONNECT --host host.docker.internal --port 8123&lt;/span>
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>在 docker 里面连接另外一个 docker 中的 ch 可能会有问题，感觉是目前 clickhouse-cpp 对于网络的处理不太完善。感兴趣的同学也可以下载代码自己编译，具体的编译流程见 &lt;a href="https://github.com/wangfenjin/xeus-clickhouse">github&lt;/a> 仓库。欢迎大家试用！&lt;/p></content></item><item><title>用 od 查看 ClickHouse 的索引文件</title><link>https://www.wangfenjin.com/posts/clickhouse-od/</link><pubDate>Wed, 18 Mar 2020 00:00:00 +0000</pubDate><guid>https://www.wangfenjin.com/posts/clickhouse-od/</guid><description>背景 学习 ClickHouse (后面简称 CH) 的时候，会对 CH 到底怎么组织磁盘上的 MergeTree 文件有很多疑惑。关于 MergeTree 的介绍可以参考[1]，但是如果想具体看下磁盘上的文件，没有现成的工具。本文参考 [2] 介绍通过 od 查看磁盘文件的方法，感兴趣的话可以自己试一下，会对 MergeTree 有更深的理解。
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-bash" data-lang="bash">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e"># start jupyter with clickhouse kernal&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>docker run -p 8888:8888 wangfenjin/xeus-clickhouse:v0.1.0
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e"># start a local clickhouse for testing&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>docker run -d --name jupyter-clickhouse-server -p 8123:8123 --ulimit nofile&lt;span style="color:#f92672">=&lt;/span>262144:262144 yandex/clickhouse-server
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e"># open the example/clickhouse.ipynb and connect to local server by &lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e"># %CONNECT --host host.docker.internal --port 8123&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>在 docker 里面连接另外一个 docker 中的 ch 可能会有问题，感觉是目前 clickhouse-cpp 对于网络的处理不太完善。感兴趣的同学也可以下载代码自己编译，具体的编译流程见 &lt;a href="https://github.com/wangfenjin/xeus-clickhouse">github&lt;/a> 仓库。欢迎大家试用！&lt;/p></content></item><item><title>用 od 查看 ClickHouse 的索引文件</title><link>https://www.wangfenjin.com/posts/clickhouse-od/</link><pubDate>Wed, 18 Mar 2020 00:00:00 +0000</pubDate><guid>https://www.wangfenjin.com/posts/clickhouse-od/</guid><description>背景 学习 ClickHouse (后面简称 CH) 的时候，会对 CH 到底怎么组织磁盘上的 MergeTree 文件有很多疑惑。关于 MergeTree 的介绍可以参考[1]，但是如果想具体看下磁盘上的文件，没有现成的工具。本文参考 [2] 介绍通过 od 查看磁盘文件的方法，感兴趣的话可以自己试一下，会对 MergeTree 有更深的理解。
 本文以 官方Tutorial 中的 hits_v1 表为例来说明。下面主要描述怎么看 primary.idx 文件和 [column].mrk 文件。在 MergeTree 数据结构中，primary.idx 可认为是一级索引，mrk 文件是用作定位具体文件偏移量的，他们的行数是相同且一一对应。
 查看 primary.idx primary.idx 里面的文件是把主键的索引写入到磁盘文件中，hits_v1 的主键为 order by 语句中的字段，即 ORDER BY (CounterID, EventDate, intHash32(UserID))，CounterID 类型是 uint32，存储为4字节；EventDate 类型是 Date，存储是 2字节整型；intHash32 是4字节整型。CH 的文件内容非常紧凑，每个字段是紧挨着写入的，没有其他类似空格符等浪费。所以 primary.idx 的存储格式是 4+2+4，然后每隔 8192 行写一行索引。查看内容的方法为：
 # sql 选择第一行索引的内容 Select CounterID,toRelativeDayNum(EventDate),intHash32(UserID) from tutorial.hits_v1 limit 0,1; # od 查看 3 个字段 od -An -i -j 0 -N 4 primary.</description><content>&lt;h2 id="背景">背景&lt;/h2>
@@ -198,19 +206,22 @@ docker run -d --name jupyter-clickhouse-server -p 8123:8123 --ulimit nofile&lt;s
 &lt;p>本文以 &lt;a href="https://clickhouse.tech/docs/en/getting_started/tutorial/">官方Tutorial&lt;/a> 中的 hits_v1 表为例来说明。下面主要描述怎么看 primary.idx 文件和 [column].mrk 文件。在 MergeTree 数据结构中，primary.idx 可认为是一级索引，mrk 文件是用作定位具体文件偏移量的，他们的行数是相同且一一对应。&lt;/p>
 &lt;h2 id="查看-primaryidx">查看 primary.idx&lt;/h2>
 &lt;p>primary.idx 里面的文件是把主键的索引写入到磁盘文件中，hits_v1 的主键为 order by 语句中的字段，即 &lt;code>ORDER BY (CounterID, EventDate, intHash32(UserID))&lt;/code>，CounterID 类型是 uint32，存储为4字节；EventDate 类型是 Date，存储是 2字节整型；intHash32 是4字节整型。CH 的文件内容非常紧凑，每个字段是紧挨着写入的，没有其他类似空格符等浪费。所以 primary.idx 的存储格式是 4+2+4，然后每隔 8192 行写一行索引。查看内容的方法为：&lt;/p>
-&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-shell" data-lang="shell">&lt;span style="color:#75715e"># sql 选择第一行索引的内容&lt;/span>
-Select CounterID,toRelativeDayNum&lt;span style="color:#f92672">(&lt;/span>EventDate&lt;span style="color:#f92672">)&lt;/span>,intHash32&lt;span style="color:#f92672">(&lt;/span>UserID&lt;span style="color:#f92672">)&lt;/span> from tutorial.hits_v1 limit 0,1;
-&lt;span style="color:#75715e"># od 查看 3 个字段&lt;/span>
-od -An -i -j &lt;span style="color:#ae81ff">0&lt;/span> -N &lt;span style="color:#ae81ff">4&lt;/span> primary.idx
-od -An -i -j &lt;span style="color:#ae81ff">4&lt;/span> -N &lt;span style="color:#ae81ff">2&lt;/span> primary.idx
-od -An -i -j &lt;span style="color:#ae81ff">6&lt;/span> -N &lt;span style="color:#ae81ff">4&lt;/span> primary.idx
-&lt;span style="color:#75715e"># 类似的，sql 选择第二行索引的内容&lt;/span>
-Select CounterID,toRelativeDayNum&lt;span style="color:#f92672">(&lt;/span>EventDate&lt;span style="color:#f92672">)&lt;/span>,intHash32&lt;span style="color:#f92672">(&lt;/span>UserID&lt;span style="color:#f92672">)&lt;/span> from tutorial.hits_v1 limit 8192,1;
-&lt;span style="color:#75715e"># od 查看 3 个字段&lt;/span>
-od -An -i -j &lt;span style="color:#ae81ff">10&lt;/span> -N &lt;span style="color:#ae81ff">4&lt;/span> primary.idx
-od -An -i -j &lt;span style="color:#ae81ff">14&lt;/span> -N &lt;span style="color:#ae81ff">2&lt;/span> primary.idx
-od -An -i -j &lt;span style="color:#ae81ff">16&lt;/span> -N &lt;span style="color:#ae81ff">4&lt;/span> primary.idx
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>关于 od 的选项介绍如下：&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e"># sql 选择第一行索引的内容&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Select CounterID,toRelativeDayNum&lt;span style="color:#f92672">(&lt;/span>EventDate&lt;span style="color:#f92672">)&lt;/span>,intHash32&lt;span style="color:#f92672">(&lt;/span>UserID&lt;span style="color:#f92672">)&lt;/span> from tutorial.hits_v1 limit 0,1;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e"># od 查看 3 个字段&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>od -An -i -j &lt;span style="color:#ae81ff">0&lt;/span> -N &lt;span style="color:#ae81ff">4&lt;/span> primary.idx
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>od -An -i -j &lt;span style="color:#ae81ff">4&lt;/span> -N &lt;span style="color:#ae81ff">2&lt;/span> primary.idx
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>od -An -i -j &lt;span style="color:#ae81ff">6&lt;/span> -N &lt;span style="color:#ae81ff">4&lt;/span> primary.idx
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e"># 类似的，sql 选择第二行索引的内容&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Select CounterID,toRelativeDayNum&lt;span style="color:#f92672">(&lt;/span>EventDate&lt;span style="color:#f92672">)&lt;/span>,intHash32&lt;span style="color:#f92672">(&lt;/span>UserID&lt;span style="color:#f92672">)&lt;/span> from tutorial.hits_v1 limit 8192,1;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e"># od 查看 3 个字段&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>od -An -i -j &lt;span style="color:#ae81ff">10&lt;/span> -N &lt;span style="color:#ae81ff">4&lt;/span> primary.idx
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>od -An -i -j &lt;span style="color:#ae81ff">14&lt;/span> -N &lt;span style="color:#ae81ff">2&lt;/span> primary.idx
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>od -An -i -j &lt;span style="color:#ae81ff">16&lt;/span> -N &lt;span style="color:#ae81ff">4&lt;/span> primary.idx
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>关于 od 的选项介绍如下：&lt;/p>
 &lt;ul>
 &lt;li>-An 是不让输出偏移只输出文本内容&lt;/li>
 &lt;li>-i 是说把选择的位当作长度为 4 的整型输出；对于 EventDate 虽然存储的是 2， 但是我们把它当作 4 位输出也没问题，主要控制在 -j -N&lt;/li>
@@ -223,28 +234,29 @@ od -An -i -j &lt;span style="color:#ae81ff">16&lt;/span> -N &lt;span style="colo
 &lt;p>mrk 文件是辅助定位 bin 文件设置的。bin 文件被分成小的数据块，每个数据块压缩后存放到一起。可以参考从 [1] 中的截图：
 &lt;img src="https://www.wangfenjin.com/img/ch-bin.jpeg" alt="ch-bin-file">&lt;/p>
 &lt;p>mrk 文件行数与 idx 文件一致，每行包含两个固定为 8 字节的整型，第一个整型是 [column].bin 文件的偏移量定位到具体的数据块，第二个整型是把数据块解压后定位解压后的文件偏移。查看 mrk 的脚本如下：&lt;/p>
-&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-shell" data-lang="shell">&lt;span style="color:#75715e">#!/bin/bash
-&lt;/span>&lt;span style="color:#75715e">&lt;/span>
-&lt;span style="color:#66d9ef">if&lt;/span> &lt;span style="color:#f92672">[&lt;/span> -z &lt;span style="color:#e6db74">&amp;#34;&lt;/span>$1&lt;span style="color:#e6db74">&amp;#34;&lt;/span> &lt;span style="color:#f92672">]&lt;/span>; &lt;span style="color:#66d9ef">then&lt;/span>
-echo &lt;span style="color:#e6db74">&amp;#34;Missing filename, mrk.sh file.mrk&amp;#34;&lt;/span>
-exit &lt;span style="color:#ae81ff">1&lt;/span>
-&lt;span style="color:#66d9ef">fi&lt;/span>
-filename&lt;span style="color:#f92672">=&lt;/span>$1
-len&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#66d9ef">$(&lt;/span>wc -c &amp;lt; $filename&lt;span style="color:#66d9ef">)&lt;/span>
-offset&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#ae81ff">0&lt;/span>
-maxline&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#ae81ff">10&lt;/span>
-&lt;span style="color:#66d9ef">if&lt;/span> &lt;span style="color:#f92672">[&lt;/span> &lt;span style="color:#66d9ef">$((&lt;/span>len/16&lt;span style="color:#66d9ef">))&lt;/span> -gt $maxline &lt;span style="color:#f92672">]&lt;/span>; &lt;span style="color:#66d9ef">then&lt;/span>
-echo &lt;span style="color:#e6db74">&amp;#34;&lt;/span>$filename&lt;span style="color:#e6db74"> first &lt;/span>$maxline&lt;span style="color:#e6db74"> lines:&lt;/span>&lt;span style="color:#e6db74">&amp;#34;&lt;/span>
-&lt;span style="color:#66d9ef">else&lt;/span>
-echo &lt;span style="color:#e6db74">&amp;#34;&lt;/span>$filename&lt;span style="color:#e6db74"> content:&lt;/span>&lt;span style="color:#e6db74">&amp;#34;&lt;/span>
-&lt;span style="color:#66d9ef">fi&lt;/span>
-&lt;span style="color:#66d9ef">while&lt;/span> &lt;span style="color:#f92672">[&lt;/span> &lt;span style="color:#66d9ef">$((&lt;/span>offset+16&lt;span style="color:#66d9ef">))&lt;/span> -le $len &lt;span style="color:#f92672">]&lt;/span> &lt;span style="color:#f92672">&amp;amp;&amp;amp;&lt;/span> &lt;span style="color:#f92672">[&lt;/span> $maxline -gt &lt;span style="color:#ae81ff">0&lt;/span> &lt;span style="color:#f92672">]&lt;/span>; &lt;span style="color:#66d9ef">do&lt;/span>
-line&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#66d9ef">$(&lt;/span>od -An -t d8 -j $offset -N &lt;span style="color:#ae81ff">8&lt;/span> $filename&lt;span style="color:#66d9ef">)&lt;/span>&lt;span style="color:#e6db74">&amp;#34;,&amp;#34;&lt;/span>&lt;span style="color:#66d9ef">$(&lt;/span>od -An -t d8 -j &lt;span style="color:#66d9ef">$((&lt;/span>offset+8&lt;span style="color:#66d9ef">))&lt;/span> -N &lt;span style="color:#ae81ff">8&lt;/span> $filename&lt;span style="color:#66d9ef">)&lt;/span>
-echo $line
-offset&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#66d9ef">$((&lt;/span>$offset&lt;span style="color:#f92672">+&lt;/span>&lt;span style="color:#ae81ff">16&lt;/span>&lt;span style="color:#66d9ef">))&lt;/span>
-maxline&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#66d9ef">$((&lt;/span>$maxline&lt;span style="color:#f92672">-&lt;/span>&lt;span style="color:#ae81ff">1&lt;/span>&lt;span style="color:#66d9ef">))&lt;/span>
-&lt;span style="color:#66d9ef">done&lt;/span>
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>查看 mrk 文件的脚本是通用的，传入文件名就可以了。它的正确性也是可以验证的，比如对于 UserID 这个字段，它是 uint64 型，即占用 8 个字节，8192 行就是 65536 个字节；刚好 bin 文件中数据块的默认最小值是 65536，所以会发现 UserID.mrk 文件第二列的值永远为 0，因为刚好解压缩后的偏移量是 0。&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e">#!/bin/bash
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e">&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#66d9ef">if&lt;/span> &lt;span style="color:#f92672">[&lt;/span> -z &lt;span style="color:#e6db74">&amp;#34;&lt;/span>$1&lt;span style="color:#e6db74">&amp;#34;&lt;/span> &lt;span style="color:#f92672">]&lt;/span>; &lt;span style="color:#66d9ef">then&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> echo &lt;span style="color:#e6db74">&amp;#34;Missing filename, mrk.sh file.mrk&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> exit &lt;span style="color:#ae81ff">1&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#66d9ef">fi&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>filename&lt;span style="color:#f92672">=&lt;/span>$1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>len&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#66d9ef">$(&lt;/span>wc -c &amp;lt; $filename&lt;span style="color:#66d9ef">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>offset&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#ae81ff">0&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>maxline&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#ae81ff">10&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#66d9ef">if&lt;/span> &lt;span style="color:#f92672">[&lt;/span> &lt;span style="color:#66d9ef">$((&lt;/span>len/16&lt;span style="color:#66d9ef">))&lt;/span> -gt $maxline &lt;span style="color:#f92672">]&lt;/span>; &lt;span style="color:#66d9ef">then&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> echo &lt;span style="color:#e6db74">&amp;#34;&lt;/span>$filename&lt;span style="color:#e6db74"> first &lt;/span>$maxline&lt;span style="color:#e6db74"> lines:&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#66d9ef">else&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> echo &lt;span style="color:#e6db74">&amp;#34;&lt;/span>$filename&lt;span style="color:#e6db74"> content:&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#66d9ef">fi&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#66d9ef">while&lt;/span> &lt;span style="color:#f92672">[&lt;/span> &lt;span style="color:#66d9ef">$((&lt;/span>offset+16&lt;span style="color:#66d9ef">))&lt;/span> -le $len &lt;span style="color:#f92672">]&lt;/span> &lt;span style="color:#f92672">&amp;amp;&amp;amp;&lt;/span> &lt;span style="color:#f92672">[&lt;/span> $maxline -gt &lt;span style="color:#ae81ff">0&lt;/span> &lt;span style="color:#f92672">]&lt;/span>; &lt;span style="color:#66d9ef">do&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> line&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#66d9ef">$(&lt;/span>od -An -t d8 -j $offset -N &lt;span style="color:#ae81ff">8&lt;/span> $filename&lt;span style="color:#66d9ef">)&lt;/span>&lt;span style="color:#e6db74">&amp;#34;,&amp;#34;&lt;/span>&lt;span style="color:#66d9ef">$(&lt;/span>od -An -t d8 -j &lt;span style="color:#66d9ef">$((&lt;/span>offset+8&lt;span style="color:#66d9ef">))&lt;/span> -N &lt;span style="color:#ae81ff">8&lt;/span> $filename&lt;span style="color:#66d9ef">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> echo $line
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> offset&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#66d9ef">$((&lt;/span>$offset&lt;span style="color:#f92672">+&lt;/span>&lt;span style="color:#ae81ff">16&lt;/span>&lt;span style="color:#66d9ef">))&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> maxline&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#66d9ef">$((&lt;/span>$maxline&lt;span style="color:#f92672">-&lt;/span>&lt;span style="color:#ae81ff">1&lt;/span>&lt;span style="color:#66d9ef">))&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#66d9ef">done&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>查看 mrk 文件的脚本是通用的，传入文件名就可以了。它的正确性也是可以验证的，比如对于 UserID 这个字段，它是 uint64 型，即占用 8 个字节，8192 行就是 65536 个字节；刚好 bin 文件中数据块的默认最小值是 65536，所以会发现 UserID.mrk 文件第二列的值永远为 0，因为刚好解压缩后的偏移量是 0。&lt;/p>
 &lt;p>对于 CounterID.mrk 文件，它是 int32 占用 4 个字节，所以能看到第二列的值是可能出现非 0 的。&lt;/p>
 &lt;h2 id="总结">总结&lt;/h2>
 &lt;p>CH 没有提供简单的方案查看 idx 和 mrk 文件的内容，我们可以通过 od 来模拟实现，能帮助我们更好了解 MergeTree 这个数据结构。&lt;/p>
@@ -258,7 +270,7 @@ A emacs configuration framework Support both emacs and vim editing styles Great 
 SPC+p+p SPC+p+f SPC+p+t Search: SPC+s ripgrep
 SPC+* SPC+/ SPC+s+s Navigation: lsp
 Code: gd, SPC+j+i Buffer: SPC+b Window: SPC+w, ALT+num SPC+a Editing: vim evil
-Version Control: magit Shell: SPC+&amp;rsquo; eshell
+Version Control: magit Shell: SPC+' eshell
 Help: SPC+?, SPC+h</description><content>&lt;p>Intro video: &lt;a href="https://www.ixigua.com/i6803300850765660676/">https://www.ixigua.com/i6803300850765660676/&lt;/a>&lt;/p>
 &lt;p>What&amp;rsquo;s spacemacs?&lt;/p>
 &lt;ol>
@@ -296,7 +308,7 @@ Help: SPC+?, SPC+h</description><content>&lt;p>Intro video: &lt;a href="https://
 &lt;h2 id="editing-vim">Editing: vim&lt;/h2>
 &lt;p>evil&lt;/p>
 &lt;h2 id="version-control-magit">Version Control: magit&lt;/h2>
-&lt;h2 id="shell-spc">Shell: SPC+&amp;rsquo;&lt;/h2>
+&lt;h2 id="shell-spc">Shell: SPC+'&lt;/h2>
 &lt;p>eshell&lt;/p>
 &lt;h2 id="help-spc-spch">Help: SPC+?, SPC+h&lt;/h2></content></item><item><title>Simple: 一个支持中文和拼音搜索的 sqlite fts5插件</title><link>https://www.wangfenjin.com/posts/simple-tokenizer/</link><pubDate>Sun, 08 Mar 2020 00:00:00 +0000</pubDate><guid>https://www.wangfenjin.com/posts/simple-tokenizer/</guid><description>之前的工作关系，需要在手机上支持中文和拼音搜索。由于手机上存储数据一般都是用 sqlite，所以是基于 sqlite3 fts5 来实现。这段时间再次入门 c++，所以想用 c++ 实现一下，一来用于练手，二来当时做的时候发现网络上这方面开源的实现不多，也造福下其他人。
 背景 搜索现在几乎是每个 APP 必备的功能，用户已经习惯了搜索框搜一下，避免到处去找。搜索也是帮助用户查找旧信息，发现新功能的一个重要手段。平常我们用微信的时候经常会搜索联系人和聊天记录，发现微信这一块做的还是非常好的。关于微信的全文搜索，可以看看这两篇文章：微信全文搜索优化之路 和 微信移动端的全文检索多音字问题解决方案 。
@@ -305,7 +317,7 @@ Simple 分词器 搜索的核心是建倒排索引，建索引的核心是分词
 空白符跳过 连续的数字作为整体是一个索引 连续的英文字母作为整体并转换成小写索引 中文字单独建索引，并且把中文字转成拼音后也建搜索，这样就能同时支持中文和拼音检索。另外把拼音首字母也建索引，这样搜索 zjl 就能命中 &amp;ldquo;周杰伦&amp;rdquo;。 其他字符统一单独建索引，这样搜索 😊 也能搜到 上面的 5 条都比较好理解，关于中文为什么这么做（而不是连续的中文一起建索引），是由于客户端搜索的需求决定的。具体可以参考上面微信的两篇文章。
 有了上面的规则，代码写起来就很简单了，核心逻辑 30 行就解决了。这块代码运行效率也比较高，一遍扫描 O(n) 的复杂度就完成了分词操作。
 query 拆分 索引建好之后，query 需要根据分词规则来写才能查询到数据。比如根据上面的逻辑：
-如果查数字，我们要把搜索词当作前缀来用，比如用户搜索 123， query 就需要换成 123*，这样如果索引里面有 12345 也能被搜索出来 对于英文，除了要当作前缀，还需要把搜索词转成小写，比如用护搜索 Hello，query 就需要换成 hello*, 这样如果索引里面有 HelloWorld 也能被命中 对于中文和其他字符，都要拆成单个的才能命中索引 最后对于拼音（其实我们没办法区分英文和拼音，统一当作拼音处理就行），需要把拼音按照规则拆分，因为我们的拼音索引是单字建立的。这样如果用户搜索 &amp;ldquo;zhangliangy&amp;rdquo;，拼音就可以被拆成 &amp;lsquo;zhang AND liang AND y*'，从而命中&amp;quot;张靓颖&amp;rdquo;。具体规则微信的文章中也有详述。 可以看到 query 词重构的逻辑也比较多，在之前的项目中没有好的办法，所以是自己在应用层代码里面组装好了 query 再给 sqlite 去搜的，这样其实不太方便。在这个项目中，我实现了一个 simple_query 的字符串函数，输入一个 string，它会给转换成组装好的搜索词，用法跟使用 sqlite 内置函数一样，这样就方便很多了，下面是一个例子：</description><content>&lt;p>之前的工作关系，需要在手机上支持中文和拼音搜索。由于手机上存储数据一般都是用 sqlite，所以是基于 sqlite3 fts5 来实现。这段时间再次入门 c++，所以想用 c++ 实现一下，一来用于练手，二来当时做的时候发现网络上这方面开源的实现不多，也造福下其他人。&lt;/p>
+如果查数字，我们要把搜索词当作前缀来用，比如用户搜索 123， query 就需要换成 123*，这样如果索引里面有 12345 也能被搜索出来 对于英文，除了要当作前缀，还需要把搜索词转成小写，比如用护搜索 Hello，query 就需要换成 hello*, 这样如果索引里面有 HelloWorld 也能被命中 对于中文和其他字符，都要拆成单个的才能命中索引 最后对于拼音（其实我们没办法区分英文和拼音，统一当作拼音处理就行），需要把拼音按照规则拆分，因为我们的拼音索引是单字建立的。这样如果用户搜索 &amp;ldquo;zhangliangy&amp;rdquo;，拼音就可以被拆成 &amp;lsquo;zhang AND liang AND y*&amp;rsquo;，从而命中&amp;quot;张靓颖&amp;quot;。具体规则微信的文章中也有详述。 可以看到 query 词重构的逻辑也比较多，在之前的项目中没有好的办法，所以是自己在应用层代码里面组装好了 query 再给 sqlite 去搜的，这样其实不太方便。在这个项目中，我实现了一个 simple_query 的字符串函数，输入一个 string，它会给转换成组装好的搜索词，用法跟使用 sqlite 内置函数一样，这样就方便很多了，下面是一个例子：</description><content>&lt;p>之前的工作关系，需要在手机上支持中文和拼音搜索。由于手机上存储数据一般都是用 sqlite，所以是基于 sqlite3 fts5 来实现。这段时间再次入门 c++，所以想用 c++ 实现一下，一来用于练手，二来当时做的时候发现网络上这方面开源的实现不多，也造福下其他人。&lt;/p>
 &lt;h2 id="背景">背景&lt;/h2>
 &lt;p>搜索现在几乎是每个 APP 必备的功能，用户已经习惯了搜索框搜一下，避免到处去找。搜索也是帮助用户查找旧信息，发现新功能的一个重要手段。平常我们用微信的时候经常会搜索联系人和聊天记录，发现微信这一块做的还是非常好的。关于微信的全文搜索，可以看看这两篇文章：&lt;a href="https://juejin.im/entry/59e6cd266fb9a0451968ab02">微信全文搜索优化之路&lt;/a> 和 &lt;a href="https://cloud.tencent.com/developer/article/1198371">微信移动端的全文检索多音字问题解决方案&lt;/a> 。&lt;/p>
 &lt;p>第一篇文章主要是问题和原理的概述，第二篇文章是核心分词器的实现。我写的这个项目主要是实现了 simple 分词器，并提供一些辅助函数帮助使用。&lt;/p>
@@ -326,21 +338,24 @@ query 拆分 索引建好之后，query 需要根据分词规则来写才能查�
 &lt;li>如果查数字，我们要把搜索词当作前缀来用，比如用户搜索 123， query 就需要换成 123*，这样如果索引里面有 12345 也能被搜索出来&lt;/li>
 &lt;li>对于英文，除了要当作前缀，还需要把搜索词转成小写，比如用护搜索 Hello，query 就需要换成 hello*, 这样如果索引里面有 HelloWorld 也能被命中&lt;/li>
 &lt;li>对于中文和其他字符，都要拆成单个的才能命中索引&lt;/li>
-&lt;li>最后对于拼音（其实我们没办法区分英文和拼音，统一当作拼音处理就行），需要把拼音按照规则拆分，因为我们的拼音索引是单字建立的。这样如果用户搜索 &amp;ldquo;zhangliangy&amp;rdquo;，拼音就可以被拆成 &amp;lsquo;zhang AND liang AND y*'，从而命中&amp;quot;张靓颖&amp;rdquo;。具体规则微信的文章中也有详述。&lt;/li>
+&lt;li>最后对于拼音（其实我们没办法区分英文和拼音，统一当作拼音处理就行），需要把拼音按照规则拆分，因为我们的拼音索引是单字建立的。这样如果用户搜索 &amp;ldquo;zhangliangy&amp;rdquo;，拼音就可以被拆成 &amp;lsquo;zhang AND liang AND y*&amp;rsquo;，从而命中&amp;quot;张靓颖&amp;quot;。具体规则微信的文章中也有详述。&lt;/li>
 &lt;/ol>
 &lt;p>可以看到 query 词重构的逻辑也比较多，在之前的项目中没有好的办法，所以是自己在应用层代码里面组装好了 query 再给 sqlite 去搜的，这样其实不太方便。在这个项目中，我实现了一个 simple_query 的字符串函数，输入一个 string，它会给转换成组装好的搜索词，用法跟使用 sqlite 内置函数一样，这样就方便很多了，下面是一个例子：&lt;/p>
-&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-sql" data-lang="sql">&lt;span style="color:#75715e">-- 完整例子：https://github.com/wangfenjin/simple/blob/master/test.sql
-&lt;/span>&lt;span style="color:#75715e">&lt;/span>
-&lt;span style="color:#75715e">-- load so file
-&lt;/span>&lt;span style="color:#75715e">&lt;/span>.&lt;span style="color:#66d9ef">load&lt;/span> libsimple.so
-&lt;span style="color:#75715e">-- set tokenize to simple
-&lt;/span>&lt;span style="color:#75715e">&lt;/span>&lt;span style="color:#66d9ef">CREATE&lt;/span> VIRTUAL &lt;span style="color:#66d9ef">TABLE&lt;/span> t1 &lt;span style="color:#66d9ef">USING&lt;/span> fts5(x, tokenize &lt;span style="color:#f92672">=&lt;/span> &lt;span style="color:#e6db74">&amp;#34;&lt;/span>&lt;span style="color:#e6db74">simple&lt;/span>&lt;span style="color:#e6db74">&amp;#34;&lt;/span>);
-&lt;span style="color:#75715e">-- add some values into the table
-&lt;/span>&lt;span style="color:#75715e">&lt;/span>&lt;span style="color:#66d9ef">insert&lt;/span> &lt;span style="color:#66d9ef">into&lt;/span> t1 &lt;span style="color:#66d9ef">values&lt;/span> (&lt;span style="color:#e6db74">&amp;#34;&lt;/span>&lt;span style="color:#e6db74">周杰伦 Jay Chou:最美的不是下雨天，是曾与你躲过雨的屋檐&lt;/span>&lt;span style="color:#e6db74">&amp;#34;&lt;/span>),
-&lt;span style="color:#75715e">-- query result: [周杰伦] Jay Chou:最美的不是下雨天，是曾与你躲过雨的屋檐
-&lt;/span>&lt;span style="color:#75715e">&lt;/span>&lt;span style="color:#66d9ef">select&lt;/span> simple_highlight(t1, &lt;span style="color:#ae81ff">0&lt;/span>, &lt;span style="color:#e6db74">&amp;#39;&lt;/span>&lt;span style="color:#e6db74">[&lt;/span>&lt;span style="color:#e6db74">&amp;#39;&lt;/span>, &lt;span style="color:#e6db74">&amp;#39;&lt;/span>&lt;span style="color:#e6db74">]&lt;/span>&lt;span style="color:#e6db74">&amp;#39;&lt;/span>) &lt;span style="color:#66d9ef">from&lt;/span> t1 &lt;span style="color:#66d9ef">where&lt;/span> x &lt;span style="color:#66d9ef">match&lt;/span> simple_query(&lt;span style="color:#e6db74">&amp;#39;&lt;/span>&lt;span style="color:#e6db74">zhoujiel&lt;/span>&lt;span style="color:#e6db74">&amp;#39;&lt;/span>);
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>可以看到， match 后面用 simple_query 这个函数，传入用户输入的搜索词就可以用了。&lt;/p>
-&lt;p>另外 sql 中还有一个 simple_highlight 函数，它的作用和内置的 highlight 函数一样，只是它会把连续命中的词一起高亮。比如对于文档&amp;quot;周杰伦&amp;rdquo;，如果搜索词是 &amp;lsquo;zhou AND jie&amp;rsquo;，那么 highlight 函数会返回 &amp;ldquo;[周][杰]伦&amp;rdquo;，simple_highlight 会返回 &amp;ldquo;[周杰]伦&amp;rdquo;。&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-sql" data-lang="sql">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e">-- 完整例子：https://github.com/wangfenjin/simple/blob/master/test.sql
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e">&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e">-- load so file
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e">&lt;/span>.&lt;span style="color:#66d9ef">load&lt;/span> libsimple.so
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e">-- set tokenize to simple
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e">&lt;/span>&lt;span style="color:#66d9ef">CREATE&lt;/span> VIRTUAL &lt;span style="color:#66d9ef">TABLE&lt;/span> t1 &lt;span style="color:#66d9ef">USING&lt;/span> fts5(x, tokenize &lt;span style="color:#f92672">=&lt;/span> &lt;span style="color:#e6db74">&amp;#34;simple&amp;#34;&lt;/span>);
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e">-- add some values into the table
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e">&lt;/span>&lt;span style="color:#66d9ef">insert&lt;/span> &lt;span style="color:#66d9ef">into&lt;/span> t1 &lt;span style="color:#66d9ef">values&lt;/span> (&lt;span style="color:#e6db74">&amp;#34;周杰伦 Jay Chou:最美的不是下雨天，是曾与你躲过雨的屋檐&amp;#34;&lt;/span>),
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e">-- query result: [周杰伦] Jay Chou:最美的不是下雨天，是曾与你躲过雨的屋檐
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e">&lt;/span>&lt;span style="color:#66d9ef">select&lt;/span> simple_highlight(t1, &lt;span style="color:#ae81ff">0&lt;/span>, &lt;span style="color:#e6db74">&amp;#39;[&amp;#39;&lt;/span>, &lt;span style="color:#e6db74">&amp;#39;]&amp;#39;&lt;/span>) &lt;span style="color:#66d9ef">from&lt;/span> t1 &lt;span style="color:#66d9ef">where&lt;/span> x &lt;span style="color:#66d9ef">match&lt;/span> simple_query(&lt;span style="color:#e6db74">&amp;#39;zhoujiel&amp;#39;&lt;/span>);
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>可以看到， match 后面用 simple_query 这个函数，传入用户输入的搜索词就可以用了。&lt;/p>
+&lt;p>另外 sql 中还有一个 simple_highlight 函数，它的作用和内置的 highlight 函数一样，只是它会把连续命中的词一起高亮。比如对于文档&amp;quot;周杰伦&amp;quot;，如果搜索词是 &amp;lsquo;zhou AND jie&amp;rsquo;，那么 highlight 函数会返回 &amp;ldquo;[周][杰]伦&amp;rdquo;，simple_highlight 会返回 &amp;ldquo;[周杰]伦&amp;rdquo;。&lt;/p>
 &lt;h2 id="总结">总结&lt;/h2>
 &lt;p>最后说几句关于 sqlite fts5 的使用的问题。个人建议通过 trigger 的方式来维护索引的这张表，具体使用的方式可以在官方文章中搜索 trigger 找到例子。这样使用的好处是没有复杂的逻辑去保证文档数据和索引数据一致，微信的文章中很大一部分复杂度在描述怎么保证数据一致的问题。他们可能有自己的业务复杂性，但是对于一般的场景来说， trigger 是最好的方式。&lt;/p>
 &lt;p>从这个项目我们能学到：&lt;/p>
@@ -363,47 +378,54 @@ query 拆分 索引建好之后，query 需要根据分词规则来写才能查�
 &lt;/blockquote>
 &lt;h3 id="header-3">Header 3&lt;/h3>
 &lt;p>Nulla libero turpis, lacinia vitae cursus ut, auctor dictum nisl. Fusce varius felis nec sem ullamcorper, at convallis nisi vestibulum. Duis risus odio, porta sit amet placerat mollis, tincidunt non mauris. Suspendisse fringilla, &lt;code>odio a dignissim pharetra&lt;/code>, est urna sollicitudin urna, eu scelerisque magna ex vitae tellus.&lt;/p>
-&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-css" data-lang="css">&lt;span style="color:#75715e">/* PostCSS code */&lt;/span>
-&lt;span style="color:#f92672">pre&lt;/span> {
-&lt;span style="color:#66d9ef">background&lt;/span>: &lt;span style="color:#ae81ff">#1a1a1d&lt;/span>;
-&lt;span style="color:#66d9ef">padding&lt;/span>: &lt;span style="color:#ae81ff">20&lt;/span>&lt;span style="color:#66d9ef">px&lt;/span>;
-&lt;span style="color:#66d9ef">border-radius&lt;/span>: &lt;span style="color:#ae81ff">8&lt;/span>&lt;span style="color:#66d9ef">px&lt;/span>;
-&lt;span style="color:#66d9ef">font-size&lt;/span>: &lt;span style="color:#ae81ff">1&lt;/span>&lt;span style="color:#66d9ef">rem&lt;/span>;
-&lt;span style="color:#66d9ef">overflow&lt;/span>: &lt;span style="color:#66d9ef">auto&lt;/span>;
-&lt;span style="color:#960050;background-color:#1e0010">@&lt;/span>&lt;span style="color:#960050;background-color:#1e0010">m&lt;/span>&lt;span style="color:#960050;background-color:#1e0010">e&lt;/span>&lt;span style="color:#960050;background-color:#1e0010">d&lt;/span>&lt;span style="color:#960050;background-color:#1e0010">i&lt;/span>&lt;span style="color:#960050;background-color:#1e0010">a&lt;/span> &lt;span style="color:#960050;background-color:#1e0010">(&lt;/span>&lt;span style="color:#960050;background-color:#1e0010">-&lt;/span>&lt;span style="color:#960050;background-color:#1e0010">-&lt;/span>&lt;span style="color:#960050;background-color:#1e0010">p&lt;/span>&lt;span style="color:#960050;background-color:#1e0010">h&lt;/span>&lt;span style="color:#960050;background-color:#1e0010">o&lt;/span>&lt;span style="color:#960050;background-color:#1e0010">n&lt;/span>&lt;span style="color:#960050;background-color:#1e0010">e&lt;/span>&lt;span style="color:#960050;background-color:#1e0010">)&lt;/span> &lt;span style="color:#960050;background-color:#1e0010">{&lt;/span>
-&lt;span style="color:#66d9ef">white-space&lt;/span>: &lt;span style="color:#66d9ef">pre&lt;/span>&lt;span style="color:#f92672">-&lt;/span>&lt;span style="color:#66d9ef">wrap&lt;/span>;
-&lt;span style="color:#66d9ef">word-wrap&lt;/span>: &lt;span style="color:#66d9ef">break-word&lt;/span>;
-}
-&lt;span style="color:#f92672">code&lt;/span> {
-&lt;span style="color:#66d9ef">background&lt;/span>: &lt;span style="color:#66d9ef">none&lt;/span> &lt;span style="color:#75715e">!important&lt;/span>;
-&lt;span style="color:#66d9ef">color&lt;/span>: &lt;span style="color:#ae81ff">#ccc&lt;/span>;
-&lt;span style="color:#66d9ef">padding&lt;/span>: &lt;span style="color:#ae81ff">0&lt;/span>;
-&lt;span style="color:#66d9ef">font-size&lt;/span>: &lt;span style="color:#66d9ef">inherit&lt;/span>;
-}
-&lt;span style="color:#960050;background-color:#1e0010">}&lt;/span>
-&lt;/code>&lt;/pre>&lt;/div>&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-js" data-lang="js">&lt;span style="color:#75715e">// JS code
-&lt;/span>&lt;span style="color:#75715e">&lt;/span>
-&lt;span style="color:#66d9ef">const&lt;/span> &lt;span style="color:#a6e22e">menuTrigger&lt;/span> &lt;span style="color:#f92672">=&lt;/span> document.&lt;span style="color:#a6e22e">querySelector&lt;/span>(&lt;span style="color:#e6db74">&amp;#39;.menu-trigger&amp;#39;&lt;/span>)
-&lt;span style="color:#66d9ef">const&lt;/span> &lt;span style="color:#a6e22e">menu&lt;/span> &lt;span style="color:#f92672">=&lt;/span> document.&lt;span style="color:#a6e22e">querySelector&lt;/span>(&lt;span style="color:#e6db74">&amp;#39;.menu&amp;#39;&lt;/span>)
-&lt;span style="color:#66d9ef">const&lt;/span> &lt;span style="color:#a6e22e">mobileQuery&lt;/span> &lt;span style="color:#f92672">=&lt;/span> &lt;span style="color:#a6e22e">getComputedStyle&lt;/span>(document.&lt;span style="color:#a6e22e">body&lt;/span>).&lt;span style="color:#a6e22e">getPropertyValue&lt;/span>(&lt;span style="color:#e6db74">&amp;#39;--phoneWidth&amp;#39;&lt;/span>)
-&lt;span style="color:#66d9ef">const&lt;/span> &lt;span style="color:#a6e22e">isMobile&lt;/span> &lt;span style="color:#f92672">=&lt;/span> () =&amp;gt; window.&lt;span style="color:#a6e22e">matchMedia&lt;/span>(&lt;span style="color:#a6e22e">mobileQuery&lt;/span>).&lt;span style="color:#a6e22e">matches&lt;/span>
-&lt;span style="color:#66d9ef">const&lt;/span> &lt;span style="color:#a6e22e">isMobileMenu&lt;/span> &lt;span style="color:#f92672">=&lt;/span> () =&amp;gt; {
-&lt;span style="color:#a6e22e">menuTrigger&lt;/span>.&lt;span style="color:#a6e22e">classList&lt;/span>.&lt;span style="color:#a6e22e">toggle&lt;/span>(&lt;span style="color:#e6db74">&amp;#39;hidden&amp;#39;&lt;/span>, &lt;span style="color:#f92672">!&lt;/span>&lt;span style="color:#a6e22e">isMobile&lt;/span>())
-&lt;span style="color:#a6e22e">menu&lt;/span>.&lt;span style="color:#a6e22e">classList&lt;/span>.&lt;span style="color:#a6e22e">toggle&lt;/span>(&lt;span style="color:#e6db74">&amp;#39;hidden&amp;#39;&lt;/span>, &lt;span style="color:#a6e22e">isMobile&lt;/span>())
-}
-&lt;span style="color:#a6e22e">isMobileMenu&lt;/span>()
-&lt;span style="color:#a6e22e">menuTrigger&lt;/span>.&lt;span style="color:#a6e22e">addEventListener&lt;/span>(&lt;span style="color:#e6db74">&amp;#39;click&amp;#39;&lt;/span>, () =&amp;gt; &lt;span style="color:#a6e22e">menu&lt;/span>.&lt;span style="color:#a6e22e">classList&lt;/span>.&lt;span style="color:#a6e22e">toggle&lt;/span>(&lt;span style="color:#e6db74">&amp;#39;hidden&amp;#39;&lt;/span>))
-window.&lt;span style="color:#a6e22e">addEventListener&lt;/span>(&lt;span style="color:#e6db74">&amp;#39;resize&amp;#39;&lt;/span>, &lt;span style="color:#a6e22e">isMobileMenu&lt;/span>)
-&lt;/code>&lt;/pre>&lt;/div>&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-html" data-lang="html">&lt;span style="color:#75715e">&amp;lt;!--&lt;/span>&lt;span style="color:#75715e"> HTML code &lt;/span>&lt;span style="color:#75715e">--&amp;gt;&lt;/span>
-&amp;lt;&lt;span style="color:#f92672">section&lt;/span> &lt;span style="color:#a6e22e">id&lt;/span>&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#e6db74">&amp;#34;main&amp;#34;&lt;/span>&amp;gt;
-&amp;lt;&lt;span style="color:#f92672">div&lt;/span>&amp;gt;
-&amp;lt;&lt;span style="color:#f92672">h1&lt;/span> &lt;span style="color:#a6e22e">id&lt;/span>&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#e6db74">&amp;#34;title&amp;#34;&lt;/span>&amp;gt;{{ .Title }}&amp;lt;/&lt;span style="color:#f92672">h1&lt;/span>&amp;gt;
-{{ range .Pages }}
-{{ .Render &amp;#34;summary&amp;#34;}}
-{{ end }}
-&amp;lt;/&lt;span style="color:#f92672">div&lt;/span>&amp;gt;
-&amp;lt;/&lt;span style="color:#f92672">section&lt;/span>&amp;gt;
-&lt;/code>&lt;/pre>&lt;/div>&lt;h4 id="header-4">Header 4&lt;/h4>
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-css" data-lang="css">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e">/* PostCSS code */&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#f92672">pre&lt;/span> {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#66d9ef">background&lt;/span>: &lt;span style="color:#ae81ff">#1a1a1d&lt;/span>;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#66d9ef">padding&lt;/span>: &lt;span style="color:#ae81ff">20&lt;/span>&lt;span style="color:#66d9ef">px&lt;/span>;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#66d9ef">border-radius&lt;/span>: &lt;span style="color:#ae81ff">8&lt;/span>&lt;span style="color:#66d9ef">px&lt;/span>;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#66d9ef">font-size&lt;/span>: &lt;span style="color:#ae81ff">1&lt;/span>&lt;span style="color:#66d9ef">rem&lt;/span>;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#66d9ef">overflow&lt;/span>: &lt;span style="color:#66d9ef">auto&lt;/span>;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#960050;background-color:#1e0010">@media&lt;/span> &lt;span style="color:#960050;background-color:#1e0010">(--phone)&lt;/span> &lt;span style="color:#960050;background-color:#1e0010">{&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#66d9ef">white-space&lt;/span>: &lt;span style="color:#66d9ef">pre-wrap&lt;/span>;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#66d9ef">word-wrap&lt;/span>: &lt;span style="color:#66d9ef">break-word&lt;/span>;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> }
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#f92672">code&lt;/span> {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#66d9ef">background&lt;/span>: &lt;span style="color:#66d9ef">none&lt;/span> &lt;span style="color:#75715e">!important&lt;/span>;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#66d9ef">color&lt;/span>: &lt;span style="color:#ae81ff">#ccc&lt;/span>;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#66d9ef">padding&lt;/span>: &lt;span style="color:#ae81ff">0&lt;/span>;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#66d9ef">font-size&lt;/span>: &lt;span style="color:#66d9ef">inherit&lt;/span>;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> }
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#960050;background-color:#1e0010">}&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-js" data-lang="js">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e">// JS code
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e">&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#66d9ef">const&lt;/span> &lt;span style="color:#a6e22e">menuTrigger&lt;/span> &lt;span style="color:#f92672">=&lt;/span> document.&lt;span style="color:#a6e22e">querySelector&lt;/span>(&lt;span style="color:#e6db74">&amp;#39;.menu-trigger&amp;#39;&lt;/span>)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#66d9ef">const&lt;/span> &lt;span style="color:#a6e22e">menu&lt;/span> &lt;span style="color:#f92672">=&lt;/span> document.&lt;span style="color:#a6e22e">querySelector&lt;/span>(&lt;span style="color:#e6db74">&amp;#39;.menu&amp;#39;&lt;/span>)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#66d9ef">const&lt;/span> &lt;span style="color:#a6e22e">mobileQuery&lt;/span> &lt;span style="color:#f92672">=&lt;/span> &lt;span style="color:#a6e22e">getComputedStyle&lt;/span>(document.&lt;span style="color:#a6e22e">body&lt;/span>).&lt;span style="color:#a6e22e">getPropertyValue&lt;/span>(&lt;span style="color:#e6db74">&amp;#39;--phoneWidth&amp;#39;&lt;/span>)
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#66d9ef">const&lt;/span> &lt;span style="color:#a6e22e">isMobile&lt;/span> &lt;span style="color:#f92672">=&lt;/span> () =&amp;gt; window.&lt;span style="color:#a6e22e">matchMedia&lt;/span>(&lt;span style="color:#a6e22e">mobileQuery&lt;/span>).&lt;span style="color:#a6e22e">matches&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#66d9ef">const&lt;/span> &lt;span style="color:#a6e22e">isMobileMenu&lt;/span> &lt;span style="color:#f92672">=&lt;/span> () =&amp;gt; {
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#a6e22e">menuTrigger&lt;/span>.&lt;span style="color:#a6e22e">classList&lt;/span>.&lt;span style="color:#a6e22e">toggle&lt;/span>(&lt;span style="color:#e6db74">&amp;#39;hidden&amp;#39;&lt;/span>, &lt;span style="color:#f92672">!&lt;/span>&lt;span style="color:#a6e22e">isMobile&lt;/span>())
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &lt;span style="color:#a6e22e">menu&lt;/span>.&lt;span style="color:#a6e22e">classList&lt;/span>.&lt;span style="color:#a6e22e">toggle&lt;/span>(&lt;span style="color:#e6db74">&amp;#39;hidden&amp;#39;&lt;/span>, &lt;span style="color:#a6e22e">isMobile&lt;/span>())
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a6e22e">isMobileMenu&lt;/span>()
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#a6e22e">menuTrigger&lt;/span>.&lt;span style="color:#a6e22e">addEventListener&lt;/span>(&lt;span style="color:#e6db74">&amp;#39;click&amp;#39;&lt;/span>, () =&amp;gt; &lt;span style="color:#a6e22e">menu&lt;/span>.&lt;span style="color:#a6e22e">classList&lt;/span>.&lt;span style="color:#a6e22e">toggle&lt;/span>(&lt;span style="color:#e6db74">&amp;#39;hidden&amp;#39;&lt;/span>))
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>window.&lt;span style="color:#a6e22e">addEventListener&lt;/span>(&lt;span style="color:#e6db74">&amp;#39;resize&amp;#39;&lt;/span>, &lt;span style="color:#a6e22e">isMobileMenu&lt;/span>)
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-html" data-lang="html">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e">&amp;lt;!-- HTML code --&amp;gt;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&amp;lt;&lt;span style="color:#f92672">section&lt;/span> &lt;span style="color:#a6e22e">id&lt;/span>&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#e6db74">&amp;#34;main&amp;#34;&lt;/span>&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;lt;&lt;span style="color:#f92672">div&lt;/span>&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;lt;&lt;span style="color:#f92672">h1&lt;/span> &lt;span style="color:#a6e22e">id&lt;/span>&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#e6db74">&amp;#34;title&amp;#34;&lt;/span>&amp;gt;{{ .Title }}&amp;lt;/&lt;span style="color:#f92672">h1&lt;/span>&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> {{ range .Pages }}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> {{ .Render &amp;#34;summary&amp;#34;}}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> {{ end }}
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> &amp;lt;/&lt;span style="color:#f92672">div&lt;/span>&amp;gt;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&amp;lt;/&lt;span style="color:#f92672">section&lt;/span>&amp;gt;
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;h4 id="header-4">Header 4&lt;/h4>
 &lt;p>Curabitur scelerisque felis viverra varius scelerisque. Ut enim libero, molestie gravida blandit at, mollis ornare tellus. Cras arcu mi, ultrices vel pulvinar vel, volutpat eu tortor. Nullam nec eros quis massa ultrices iaculis sed in metus. Praesent sollicitudin sem sit amet orci tempor gravida.&lt;/p>
 &lt;ul>
 &lt;li>Maecenas elementum vitae nibh vitae porttitor.&lt;/li>

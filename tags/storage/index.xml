@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>storage on Wang Fenjin</title><link>https://www.wangfenjin.com/tags/storage/</link><description>Recent content in storage on Wang Fenjin</description><generator>Hugo -- gohugo.io</generator><language>en-us</language><copyright>Copyright © 2022 Wang Fenjin :: Powered by &lt;a href="http://gohugo.io">Hugo&lt;/a></copyright><lastBuildDate>Wed, 18 Mar 2020 00:00:00 +0000</lastBuildDate><atom:link href="https://www.wangfenjin.com/tags/storage/index.xml" rel="self" type="application/rss+xml"/><item><title>用 od 查看 ClickHouse 的索引文件</title><link>https://www.wangfenjin.com/posts/clickhouse-od/</link><pubDate>Wed, 18 Mar 2020 00:00:00 +0000</pubDate><guid>https://www.wangfenjin.com/posts/clickhouse-od/</guid><description>背景 学习 ClickHouse (后面简称 CH) 的时候，会对 CH 到底怎么组织磁盘上的 MergeTree 文件有很多疑惑。关于 MergeTree 的介绍可以参考[1]，但是如果想具体看下磁盘上的文件，没有现成的工具。本文参考 [2] 介绍通过 od 查看磁盘文件的方法，感兴趣的话可以自己试一下，会对 MergeTree 有更深的理解。
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>storage on Wang Fenjin</title><link>https://www.wangfenjin.com/tags/storage/</link><description>Recent content in storage on Wang Fenjin</description><generator>Hugo -- gohugo.io</generator><language>en</language><copyright>Copyright © 2022 Wang Fenjin :: Powered by &lt;a href="http://gohugo.io">Hugo&lt;/a></copyright><lastBuildDate>Wed, 18 Mar 2020 00:00:00 +0000</lastBuildDate><atom:link href="https://www.wangfenjin.com/tags/storage/index.xml" rel="self" type="application/rss+xml"/><item><title>用 od 查看 ClickHouse 的索引文件</title><link>https://www.wangfenjin.com/posts/clickhouse-od/</link><pubDate>Wed, 18 Mar 2020 00:00:00 +0000</pubDate><guid>https://www.wangfenjin.com/posts/clickhouse-od/</guid><description>背景 学习 ClickHouse (后面简称 CH) 的时候，会对 CH 到底怎么组织磁盘上的 MergeTree 文件有很多疑惑。关于 MergeTree 的介绍可以参考[1]，但是如果想具体看下磁盘上的文件，没有现成的工具。本文参考 [2] 介绍通过 od 查看磁盘文件的方法，感兴趣的话可以自己试一下，会对 MergeTree 有更深的理解。
 本文以 官方Tutorial 中的 hits_v1 表为例来说明。下面主要描述怎么看 primary.idx 文件和 [column].mrk 文件。在 MergeTree 数据结构中，primary.idx 可认为是一级索引，mrk 文件是用作定位具体文件偏移量的，他们的行数是相同且一一对应。
 查看 primary.idx primary.idx 里面的文件是把主键的索引写入到磁盘文件中，hits_v1 的主键为 order by 语句中的字段，即 ORDER BY (CounterID, EventDate, intHash32(UserID))，CounterID 类型是 uint32，存储为4字节；EventDate 类型是 Date，存储是 2字节整型；intHash32 是4字节整型。CH 的文件内容非常紧凑，每个字段是紧挨着写入的，没有其他类似空格符等浪费。所以 primary.idx 的存储格式是 4+2+4，然后每隔 8192 行写一行索引。查看内容的方法为：
 # sql 选择第一行索引的内容 Select CounterID,toRelativeDayNum(EventDate),intHash32(UserID) from tutorial.hits_v1 limit 0,1; # od 查看 3 个字段 od -An -i -j 0 -N 4 primary.</description><content>&lt;h2 id="背景">背景&lt;/h2>
@@ -6,19 +6,22 @@
 &lt;p>本文以 &lt;a href="https://clickhouse.tech/docs/en/getting_started/tutorial/">官方Tutorial&lt;/a> 中的 hits_v1 表为例来说明。下面主要描述怎么看 primary.idx 文件和 [column].mrk 文件。在 MergeTree 数据结构中，primary.idx 可认为是一级索引，mrk 文件是用作定位具体文件偏移量的，他们的行数是相同且一一对应。&lt;/p>
 &lt;h2 id="查看-primaryidx">查看 primary.idx&lt;/h2>
 &lt;p>primary.idx 里面的文件是把主键的索引写入到磁盘文件中，hits_v1 的主键为 order by 语句中的字段，即 &lt;code>ORDER BY (CounterID, EventDate, intHash32(UserID))&lt;/code>，CounterID 类型是 uint32，存储为4字节；EventDate 类型是 Date，存储是 2字节整型；intHash32 是4字节整型。CH 的文件内容非常紧凑，每个字段是紧挨着写入的，没有其他类似空格符等浪费。所以 primary.idx 的存储格式是 4+2+4，然后每隔 8192 行写一行索引。查看内容的方法为：&lt;/p>
-&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-shell" data-lang="shell">&lt;span style="color:#75715e"># sql 选择第一行索引的内容&lt;/span>
-Select CounterID,toRelativeDayNum&lt;span style="color:#f92672">(&lt;/span>EventDate&lt;span style="color:#f92672">)&lt;/span>,intHash32&lt;span style="color:#f92672">(&lt;/span>UserID&lt;span style="color:#f92672">)&lt;/span> from tutorial.hits_v1 limit 0,1;
-&lt;span style="color:#75715e"># od 查看 3 个字段&lt;/span>
-od -An -i -j &lt;span style="color:#ae81ff">0&lt;/span> -N &lt;span style="color:#ae81ff">4&lt;/span> primary.idx
-od -An -i -j &lt;span style="color:#ae81ff">4&lt;/span> -N &lt;span style="color:#ae81ff">2&lt;/span> primary.idx
-od -An -i -j &lt;span style="color:#ae81ff">6&lt;/span> -N &lt;span style="color:#ae81ff">4&lt;/span> primary.idx
-&lt;span style="color:#75715e"># 类似的，sql 选择第二行索引的内容&lt;/span>
-Select CounterID,toRelativeDayNum&lt;span style="color:#f92672">(&lt;/span>EventDate&lt;span style="color:#f92672">)&lt;/span>,intHash32&lt;span style="color:#f92672">(&lt;/span>UserID&lt;span style="color:#f92672">)&lt;/span> from tutorial.hits_v1 limit 8192,1;
-&lt;span style="color:#75715e"># od 查看 3 个字段&lt;/span>
-od -An -i -j &lt;span style="color:#ae81ff">10&lt;/span> -N &lt;span style="color:#ae81ff">4&lt;/span> primary.idx
-od -An -i -j &lt;span style="color:#ae81ff">14&lt;/span> -N &lt;span style="color:#ae81ff">2&lt;/span> primary.idx
-od -An -i -j &lt;span style="color:#ae81ff">16&lt;/span> -N &lt;span style="color:#ae81ff">4&lt;/span> primary.idx
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>关于 od 的选项介绍如下：&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e"># sql 选择第一行索引的内容&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Select CounterID,toRelativeDayNum&lt;span style="color:#f92672">(&lt;/span>EventDate&lt;span style="color:#f92672">)&lt;/span>,intHash32&lt;span style="color:#f92672">(&lt;/span>UserID&lt;span style="color:#f92672">)&lt;/span> from tutorial.hits_v1 limit 0,1;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e"># od 查看 3 个字段&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>od -An -i -j &lt;span style="color:#ae81ff">0&lt;/span> -N &lt;span style="color:#ae81ff">4&lt;/span> primary.idx
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>od -An -i -j &lt;span style="color:#ae81ff">4&lt;/span> -N &lt;span style="color:#ae81ff">2&lt;/span> primary.idx
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>od -An -i -j &lt;span style="color:#ae81ff">6&lt;/span> -N &lt;span style="color:#ae81ff">4&lt;/span> primary.idx
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e"># 类似的，sql 选择第二行索引的内容&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>Select CounterID,toRelativeDayNum&lt;span style="color:#f92672">(&lt;/span>EventDate&lt;span style="color:#f92672">)&lt;/span>,intHash32&lt;span style="color:#f92672">(&lt;/span>UserID&lt;span style="color:#f92672">)&lt;/span> from tutorial.hits_v1 limit 8192,1;
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e"># od 查看 3 个字段&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>od -An -i -j &lt;span style="color:#ae81ff">10&lt;/span> -N &lt;span style="color:#ae81ff">4&lt;/span> primary.idx
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>od -An -i -j &lt;span style="color:#ae81ff">14&lt;/span> -N &lt;span style="color:#ae81ff">2&lt;/span> primary.idx
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>od -An -i -j &lt;span style="color:#ae81ff">16&lt;/span> -N &lt;span style="color:#ae81ff">4&lt;/span> primary.idx
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>关于 od 的选项介绍如下：&lt;/p>
 &lt;ul>
 &lt;li>-An 是不让输出偏移只输出文本内容&lt;/li>
 &lt;li>-i 是说把选择的位当作长度为 4 的整型输出；对于 EventDate 虽然存储的是 2， 但是我们把它当作 4 位输出也没问题，主要控制在 -j -N&lt;/li>
@@ -31,28 +34,29 @@ od -An -i -j &lt;span style="color:#ae81ff">16&lt;/span> -N &lt;span style="colo
 &lt;p>mrk 文件是辅助定位 bin 文件设置的。bin 文件被分成小的数据块，每个数据块压缩后存放到一起。可以参考从 [1] 中的截图：
 &lt;img src="https://www.wangfenjin.com/img/ch-bin.jpeg" alt="ch-bin-file">&lt;/p>
 &lt;p>mrk 文件行数与 idx 文件一致，每行包含两个固定为 8 字节的整型，第一个整型是 [column].bin 文件的偏移量定位到具体的数据块，第二个整型是把数据块解压后定位解压后的文件偏移。查看 mrk 的脚本如下：&lt;/p>
-&lt;div class="highlight">&lt;pre style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4">&lt;code class="language-shell" data-lang="shell">&lt;span style="color:#75715e">#!/bin/bash
-&lt;/span>&lt;span style="color:#75715e">&lt;/span>
-&lt;span style="color:#66d9ef">if&lt;/span> &lt;span style="color:#f92672">[&lt;/span> -z &lt;span style="color:#e6db74">&amp;#34;&lt;/span>$1&lt;span style="color:#e6db74">&amp;#34;&lt;/span> &lt;span style="color:#f92672">]&lt;/span>; &lt;span style="color:#66d9ef">then&lt;/span>
-echo &lt;span style="color:#e6db74">&amp;#34;Missing filename, mrk.sh file.mrk&amp;#34;&lt;/span>
-exit &lt;span style="color:#ae81ff">1&lt;/span>
-&lt;span style="color:#66d9ef">fi&lt;/span>
-filename&lt;span style="color:#f92672">=&lt;/span>$1
-len&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#66d9ef">$(&lt;/span>wc -c &amp;lt; $filename&lt;span style="color:#66d9ef">)&lt;/span>
-offset&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#ae81ff">0&lt;/span>
-maxline&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#ae81ff">10&lt;/span>
-&lt;span style="color:#66d9ef">if&lt;/span> &lt;span style="color:#f92672">[&lt;/span> &lt;span style="color:#66d9ef">$((&lt;/span>len/16&lt;span style="color:#66d9ef">))&lt;/span> -gt $maxline &lt;span style="color:#f92672">]&lt;/span>; &lt;span style="color:#66d9ef">then&lt;/span>
-echo &lt;span style="color:#e6db74">&amp;#34;&lt;/span>$filename&lt;span style="color:#e6db74"> first &lt;/span>$maxline&lt;span style="color:#e6db74"> lines:&lt;/span>&lt;span style="color:#e6db74">&amp;#34;&lt;/span>
-&lt;span style="color:#66d9ef">else&lt;/span>
-echo &lt;span style="color:#e6db74">&amp;#34;&lt;/span>$filename&lt;span style="color:#e6db74"> content:&lt;/span>&lt;span style="color:#e6db74">&amp;#34;&lt;/span>
-&lt;span style="color:#66d9ef">fi&lt;/span>
-&lt;span style="color:#66d9ef">while&lt;/span> &lt;span style="color:#f92672">[&lt;/span> &lt;span style="color:#66d9ef">$((&lt;/span>offset+16&lt;span style="color:#66d9ef">))&lt;/span> -le $len &lt;span style="color:#f92672">]&lt;/span> &lt;span style="color:#f92672">&amp;amp;&amp;amp;&lt;/span> &lt;span style="color:#f92672">[&lt;/span> $maxline -gt &lt;span style="color:#ae81ff">0&lt;/span> &lt;span style="color:#f92672">]&lt;/span>; &lt;span style="color:#66d9ef">do&lt;/span>
-line&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#66d9ef">$(&lt;/span>od -An -t d8 -j $offset -N &lt;span style="color:#ae81ff">8&lt;/span> $filename&lt;span style="color:#66d9ef">)&lt;/span>&lt;span style="color:#e6db74">&amp;#34;,&amp;#34;&lt;/span>&lt;span style="color:#66d9ef">$(&lt;/span>od -An -t d8 -j &lt;span style="color:#66d9ef">$((&lt;/span>offset+8&lt;span style="color:#66d9ef">))&lt;/span> -N &lt;span style="color:#ae81ff">8&lt;/span> $filename&lt;span style="color:#66d9ef">)&lt;/span>
-echo $line
-offset&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#66d9ef">$((&lt;/span>$offset&lt;span style="color:#f92672">+&lt;/span>&lt;span style="color:#ae81ff">16&lt;/span>&lt;span style="color:#66d9ef">))&lt;/span>
-maxline&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#66d9ef">$((&lt;/span>$maxline&lt;span style="color:#f92672">-&lt;/span>&lt;span style="color:#ae81ff">1&lt;/span>&lt;span style="color:#66d9ef">))&lt;/span>
-&lt;span style="color:#66d9ef">done&lt;/span>
-&lt;/code>&lt;/pre>&lt;/div>&lt;p>查看 mrk 文件的脚本是通用的，传入文件名就可以了。它的正确性也是可以验证的，比如对于 UserID 这个字段，它是 uint64 型，即占用 8 个字节，8192 行就是 65536 个字节；刚好 bin 文件中数据块的默认最小值是 65536，所以会发现 UserID.mrk 文件第二列的值永远为 0，因为刚好解压缩后的偏移量是 0。&lt;/p>
+&lt;div class="highlight">&lt;pre tabindex="0" style="color:#f8f8f2;background-color:#272822;-moz-tab-size:4;-o-tab-size:4;tab-size:4;">&lt;code class="language-shell" data-lang="shell">&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e">#!/bin/bash
+&lt;/span>&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#75715e">&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#66d9ef">if&lt;/span> &lt;span style="color:#f92672">[&lt;/span> -z &lt;span style="color:#e6db74">&amp;#34;&lt;/span>$1&lt;span style="color:#e6db74">&amp;#34;&lt;/span> &lt;span style="color:#f92672">]&lt;/span>; &lt;span style="color:#66d9ef">then&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> echo &lt;span style="color:#e6db74">&amp;#34;Missing filename, mrk.sh file.mrk&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> exit &lt;span style="color:#ae81ff">1&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#66d9ef">fi&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>filename&lt;span style="color:#f92672">=&lt;/span>$1
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>len&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#66d9ef">$(&lt;/span>wc -c &amp;lt; $filename&lt;span style="color:#66d9ef">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>offset&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#ae81ff">0&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>maxline&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#ae81ff">10&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#66d9ef">if&lt;/span> &lt;span style="color:#f92672">[&lt;/span> &lt;span style="color:#66d9ef">$((&lt;/span>len/16&lt;span style="color:#66d9ef">))&lt;/span> -gt $maxline &lt;span style="color:#f92672">]&lt;/span>; &lt;span style="color:#66d9ef">then&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> echo &lt;span style="color:#e6db74">&amp;#34;&lt;/span>$filename&lt;span style="color:#e6db74"> first &lt;/span>$maxline&lt;span style="color:#e6db74"> lines:&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#66d9ef">else&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> echo &lt;span style="color:#e6db74">&amp;#34;&lt;/span>$filename&lt;span style="color:#e6db74"> content:&amp;#34;&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#66d9ef">fi&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#66d9ef">while&lt;/span> &lt;span style="color:#f92672">[&lt;/span> &lt;span style="color:#66d9ef">$((&lt;/span>offset+16&lt;span style="color:#66d9ef">))&lt;/span> -le $len &lt;span style="color:#f92672">]&lt;/span> &lt;span style="color:#f92672">&amp;amp;&amp;amp;&lt;/span> &lt;span style="color:#f92672">[&lt;/span> $maxline -gt &lt;span style="color:#ae81ff">0&lt;/span> &lt;span style="color:#f92672">]&lt;/span>; &lt;span style="color:#66d9ef">do&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> line&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#66d9ef">$(&lt;/span>od -An -t d8 -j $offset -N &lt;span style="color:#ae81ff">8&lt;/span> $filename&lt;span style="color:#66d9ef">)&lt;/span>&lt;span style="color:#e6db74">&amp;#34;,&amp;#34;&lt;/span>&lt;span style="color:#66d9ef">$(&lt;/span>od -An -t d8 -j &lt;span style="color:#66d9ef">$((&lt;/span>offset+8&lt;span style="color:#66d9ef">))&lt;/span> -N &lt;span style="color:#ae81ff">8&lt;/span> $filename&lt;span style="color:#66d9ef">)&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> echo $line
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> offset&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#66d9ef">$((&lt;/span>$offset&lt;span style="color:#f92672">+&lt;/span>&lt;span style="color:#ae81ff">16&lt;/span>&lt;span style="color:#66d9ef">))&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span> maxline&lt;span style="color:#f92672">=&lt;/span>&lt;span style="color:#66d9ef">$((&lt;/span>$maxline&lt;span style="color:#f92672">-&lt;/span>&lt;span style="color:#ae81ff">1&lt;/span>&lt;span style="color:#66d9ef">))&lt;/span>
+&lt;/span>&lt;/span>&lt;span style="display:flex;">&lt;span>&lt;span style="color:#66d9ef">done&lt;/span>
+&lt;/span>&lt;/span>&lt;/code>&lt;/pre>&lt;/div>&lt;p>查看 mrk 文件的脚本是通用的，传入文件名就可以了。它的正确性也是可以验证的，比如对于 UserID 这个字段，它是 uint64 型，即占用 8 个字节，8192 行就是 65536 个字节；刚好 bin 文件中数据块的默认最小值是 65536，所以会发现 UserID.mrk 文件第二列的值永远为 0，因为刚好解压缩后的偏移量是 0。&lt;/p>
 &lt;p>对于 CounterID.mrk 文件，它是 int32 占用 4 个字节，所以能看到第二列的值是可能出现非 0 的。&lt;/p>
 &lt;h2 id="总结">总结&lt;/h2>
 &lt;p>CH 没有提供简单的方案查看 idx 和 mrk 文件的内容，我们可以通过 od 来模拟实现，能帮助我们更好了解 MergeTree 这个数据结构。&lt;/p>
