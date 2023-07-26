@@ -1,4 +1,109 @@
-<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>duckdb on Wang Fenjin</title><link>https://www.wangfenjin.com/tags/duckdb/</link><description>Recent content in duckdb on Wang Fenjin</description><generator>Hugo -- gohugo.io</generator><language>en</language><copyright>Copyright © 2023 Wang Fenjin :: Powered by &lt;a href="http://gohugo.io">Hugo&lt;/a></copyright><lastBuildDate>Tue, 27 Jul 2021 00:00:00 +0000</lastBuildDate><atom:link href="https://www.wangfenjin.com/tags/duckdb/index.xml" rel="self" type="application/rss+xml"/><item><title>基于 apache-arrow 的 duckdb rust 客户端</title><link>https://www.wangfenjin.com/posts/duckdb-rs/</link><pubDate>Tue, 27 Jul 2021 00:00:00 +0000</pubDate><guid>https://www.wangfenjin.com/posts/duckdb-rs/</guid><description>背景 duckdb 是一个 C++ 编写的单机版嵌入式分析型数据库。它刚开源的时候是对标 SQLite 的列存数据库，并提供与 SQLite 一样的易用性，编译成一个头文件和一个 cpp 文件就可以在程序中使用，甚至提供与 SQLite 兼容的接口，因此受到了很多人的关注。
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom"><channel><title>duckdb on Wang Fenjin</title><link>https://www.wangfenjin.com/tags/duckdb/</link><description>Recent content in duckdb on Wang Fenjin</description><generator>Hugo -- gohugo.io</generator><language>en</language><copyright>Copyright © 2023 Wang Fenjin :: Powered by &lt;a href="http://gohugo.io">Hugo&lt;/a></copyright><lastBuildDate>Wed, 26 Jul 2023 00:00:00 +0000</lastBuildDate><atom:link href="https://www.wangfenjin.com/tags/duckdb/index.xml" rel="self" type="application/rss+xml"/><item><title>I Am No Longer the Maintainer of duckdb-rs</title><link>https://www.wangfenjin.com/posts/duckdb-rs-moving-forward-en/</link><pubDate>Wed, 26 Jul 2023 00:00:00 +0000</pubDate><guid>https://www.wangfenjin.com/posts/duckdb-rs-moving-forward-en/</guid><description>Background DuckDB is an in-process SQL OLAP database management system implemented in C++. When it was first open-sourced, it was positioned as a columnar database comparable to SQLite, providing the same ease of use. With just a header file and a cpp file, it could be easily embeded in any program, even offering a SQLite-compatible interface, which caught the attention of many people source.
+I started paying attention to DuckDB a long time ago and began writing the first line of duckdb-rs code on June 7, 2021.</description><content>&lt;h2 id="background">Background&lt;/h2>
+&lt;p>&lt;a href="https://duckdb.org/">DuckDB&lt;/a> is an in-process SQL OLAP database management system implemented in C++. When it was first open-sourced, it was positioned as a columnar database comparable to SQLite, providing the same ease of use. With just a header file and a cpp file, it could be easily embeded in any program, even offering a SQLite-compatible interface, which caught the attention of many people &lt;a href="https://news.ycombinator.com/item?id=24531085">source&lt;/a>.&lt;/p>
+&lt;p>I started paying attention to DuckDB a long time ago and began writing the first line of &lt;a href="https://github.com/wangfenjin/duckdb-rs">duckdb-rs&lt;/a> code on June 7, 2021. About a month later, I wrote a &lt;a href="https://www.wangfenjin.com/posts/duckdb-rs/">blog post&lt;/a> introducing the process of building this library, marking the completion of the initial version. Over the past two years, I have released approximately &lt;a href="https://crates.io/crates/duckdb">19 versions&lt;/a>, get more than 200 stars in GitHub.&lt;/p>
+&lt;p>In the past year, there have been many requirements and ideas for optimization, but I found myself lacking the time, and the number of received issues has been increasing. As a result, I will transfer this library to &lt;a href="https://github.com/duckdb">DuckDB&lt;/a> offical organization, believing that make duckdb-rs an official client will lead to further progress and bigger success. Also I&amp;rsquo;d like to take this chance to thanks Mark and Hannes for building DuckDB and agree to accept duckdb-rs as the official rust client.&lt;/p>
+&lt;p>This blog post summarizes the main tasks I have undertaken during my maintenance period and points out areas that I believe can be improved.&lt;/p>
+&lt;h2 id="key-decisions">Key Decisions&lt;/h2>
+&lt;p>This library is the Rust client of DuckDB, so the primary audience interested in this library are users who appreciate DuckDB and use the Rust tech stack. Below are some key factors that I consider contributed to the &amp;ldquo;success&amp;rdquo; of this library:&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>Initial version based on &lt;a href="https://github.com/rusqlite/rusqlite">rusqlite&lt;/a> development. As a Rust beginner myself, I had previously only worked on one Rust project, and this was my second time using Rust. Based on rusqlite, a mature repository, allowed me to quickly obtain a usable version. Additionally, the code structure and API design had already been validated, reducing the likelihood of taking wrong turns. Moreover, the overall code quality could be reasonably assured.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Data exchange based on the &lt;a href="https://github.com/apache/arrow-rs">arrow&lt;/a> format. Arrow is now considered the columnar storage data exchange standard and is used in many open-source projects. DuckDB has good support for arrow as well. Although DuckDB has its native C interface, using the arrow format for data exchange allows relatively stable interactions between Rust and the C API. This approach ensures that we won&amp;rsquo;t need to make frequent changes due to DuckDB iterations, thus reducing maintenance efforts and minimizing the impact of interface changes on users.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Robust CI process. I believe that all open-source projects should strive for this. With a CI process, we can ensure that the code merged into the master branch was error-free. The CI process also included memory leak detection, avoiding potential safety issues introduced by the FFI. The release process was automated as well, with crates being automatically published by tagging.&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;h2 id="notable-mrs">Notable MRs&lt;/h2>
+&lt;p>I&amp;rsquo;ve selected a few MRs that I consider significant and that weren&amp;rsquo;t contributed by me:&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>&lt;a href="https://github.com/wangfenjin/duckdb-rs/pull/1">Add github workflow&lt;/a>: This was the first MR to add CI checks, which was very meaningful as I used to push directly to master before CI was in place.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;a href="https://github.com/wangfenjin/duckdb-rs/pull/32">Add r2d2 connection pool&lt;/a>: This MR added a connection pool, improving the library&amp;rsquo;s performance.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;a href="https://github.com/wangfenjin/duckdb-rs/pull/127">Rework bundled compilation to support included extensions&lt;/a>: This was the largest MR and allowed the library to support extensions, reworking the logic of bundling DuckDB source code to include various extensions without requiring additional installations.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>&lt;a href="https://github.com/wangfenjin/duckdb-rs/pull/169">Feat: Develop query polars&lt;/a>: This MR added support for converting query results into polars data structures. &lt;a href="https://github.com/pola-rs/polars">polars&lt;/a> is a popular data processing tool written in Rust. This feature bridged the gap between DuckDB and polars.&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;p>Apart from the daily maintenance, I didn&amp;rsquo;t contribute to the development of major features significantly. &lt;a href="https://github.com/wangfenjin/duckdb-rs/pull/138">Support table function&lt;/a> can be considered one, and I believe writing extensions in Rust is simpler and safer compared to C/C++.&lt;/p>
+&lt;h2 id="outstanding-issues">Outstanding Issues&lt;/h2>
+&lt;p>Due to limited time and resources, there are still some unresolved issues in this library:&lt;/p>
+&lt;ol>
+&lt;li>
+&lt;p>Better documentation. Writing documentation has always been a headache for me since English is not my strong suit. While this library inherited some documentation from rusqlite, it lacks ongoing maintenance, especially regarding documentation specific to DuckDB features. Good documentation and blog posts are key to the success of an open-source project.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Support for more data types. There are two categories of data types: those mapped to Rust data types for results, which are not a high priority since arrow-rs already provides comprehensive data types for users working with arrow data. The other category is query parameters, where we need to support a wider range of data types for better user convenience. Currently, we only support some basic query data types.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Improved support for data insertion. Columnar databases require the ability to insert data in batches, such as using DuckDB&amp;rsquo;s built-in append interface or supporting insertion of arrow data.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Compilation process optimization. As DuckDB&amp;rsquo;s features expand, the compilation process for this library has become slower and resource-consuming, resulting in larger build artifacts.&lt;/p>
+&lt;/li>
+&lt;li>
+&lt;p>Support for specific DuckDB interfaces, such as streaming query or relation API. These have been raised as issues by some users.&lt;/p>
+&lt;/li>
+&lt;/ol>
+&lt;p>To achieve the same level as DuckDB in terms of documentation and interfaces, there is still much work to be done.&lt;/p>
+&lt;h2 id="future-plans">Future Plans&lt;/h2>
+&lt;p>With the publication of this article, it means I am no longer the maintainer of duckdb-rs. However, this does not mean that I will no longer contribute code to duckdb-rs. I will continue to follow DuckDB and duckdb-rs and contribute code in my spare time.&lt;/p>
+&lt;p>If I have time, I may also work on other projects based on duckdb-rs, such as:&lt;/p>
+&lt;ul>
+&lt;li>Creating a Rust extension for DuckDB to become a vector database&lt;/li>
+&lt;li>Or building a storage server based on duckdb-rs primarily using the &lt;a href="https://github.com/apache/arrow-rs/tree/master/arrow-flight">arrow-flight&lt;/a> protocol. If I have even more time, I might add support for Raft to enable distribution. I&amp;rsquo;m not sure how useful these projects would be, but they sound like fun.&lt;/li>
+&lt;li>Another possibility is creating a distributed data processing tool, using DuckDB as intermediate data storage or for computation acceleration.&lt;/li>
+&lt;/ul>
+&lt;hr>
+&lt;blockquote>
+&lt;p>Translated from &lt;a href="https://www.wangfenjin.com/posts/duckdb-rs-moving-forward/">CN Version&lt;/a> using ChatGPT and polished manually.&lt;/p>
+&lt;/blockquote></content></item><item><title>我将不再做 duckdb-rs 的维护者</title><link>https://www.wangfenjin.com/posts/duckdb-rs-moving-forward/</link><pubDate>Wed, 26 Jul 2023 00:00:00 +0000</pubDate><guid>https://www.wangfenjin.com/posts/duckdb-rs-moving-forward/</guid><description>背景 DuckDB 是一个 C++ 编写的单机版嵌入式分析型数据库。它刚开源的时候是对标 SQLite 的列存数据库，并提供与 SQLite 一样的易用性，编译成一个头文件和一个 cpp 文件就可以在程序中使用，甚至提供与 SQLite 兼容的接口，因此受到了很多人的关注。
+我很久之前就开始关注 DuckDB，并在 2021-06-07 开始写第一行 duckdb-rs 的代码，在 一个多月后写了一篇博客介绍了构建这个库的过程，算是实现了第一个版本。到今天差不多2年的时间，前后发布了19个版本，收获了 200 多个star。
+最近一年其实还有很多需求和想法去做优化，但是发现自己并没有那么多时间，收到的 issue 也越来越多。经过沟通，我会把这个库转给 DuckDB 官方来维护，相信 duckdb-rs 一定会发展得越来越好。同时也非常感谢 Mark 和 Hannes 愿意接手这个仓库并把它作为官方的 rust 客户端。
+这篇博客总结下我维护的这段时间主要做的事，以及我认为可以改善的点，算是对过去的总结和对未来的憧憬。
+关键决策 这个库是 duckdb 的 rust 客户端，所以关注这个库的群体首先是认可 duckdb 的用户，其次因为他们是 rust 技术栈。下面我列举一些我认为是让这个库“成功”的一些关键点。
+初始版本基于 rusqlite 开发。因为我也是一个 rust 初学者，之前只拿 rust 做过一个项目，这是第二次使用 rust。基于 rustqlite 这样一个成熟的仓库做改造，能让我很快得到一个可用的版本，快速建立信心；另外整个程序的组织，API 的设计都已经经过了验证，不容易走弯路；整体的代码质量也能有基本保障。 基于 arrow 格式来交换数据。arrow 现在基本上算是列存储的数据交换标准，在很多开源项目中都有使用，duckdb 对 arrow 的支持也比较完善。虽然 duckdb 有自己的原生 C 接口，但是基于 arrow 格式来做数据交换，能让 rust 和 c-api 调用相对稳定，不会因为 duckdb 迭代导致 C 接口的变更，我们也需要一直变更，一定程度上减轻了维护的工作量，也减少了接口变更对用户的影响。 完善的 CI 流程，我认为所有的开源项目都应该要做到这一点。因为继承自 rusqlite，这个库从一开始就有 CI 流程，能保证合并到 master 的代码是没问题的，并且 CI 里面还有关于内存泄漏的检测，避免了 ffi 带了的可能不安全的问题。发布过程也是自动化的，只要打个 tag 就自动发布到 crate。CI 的机制保障了任何感兴趣的人都可以提交 MR 并得到检验，也保证自己如果长时间不维护了不至于都不知道从哪里开始改。 几个 MR 下面我挑选几个我认为比较关键的，并且不是我贡献的 MR：</description><content>&lt;h2 id="背景">背景&lt;/h2>
+&lt;p>&lt;a href="https://duckdb.org/">DuckDB&lt;/a> 是一个 C++ 编写的单机版嵌入式分析型数据库。它刚开源的时候是对标 SQLite 的列存数据库，并提供与 SQLite 一样的易用性，编译成一个头文件和一个 cpp 文件就可以在程序中使用，甚至提供与 SQLite 兼容的接口，因此受到了很多人的&lt;a href="https://news.ycombinator.com/item?id=24531085">关注&lt;/a>。&lt;/p>
+&lt;p>我很久之前就开始关注 DuckDB，并在 2021-06-07 开始写第一行 &lt;a href="https://github.com/wangfenjin/duckdb-rs">duckdb-rs&lt;/a> 的代码，在 一个多月后写了一篇&lt;a href="https://www.wangfenjin.com/posts/duckdb-rs/">博客&lt;/a>介绍了构建这个库的过程，算是实现了第一个版本。到今天差不多2年的时间，前后发布了&lt;a href="https://crates.io/crates/duckdb">19个版本&lt;/a>，收获了 200 多个star。&lt;/p>
+&lt;p>最近一年其实还有很多需求和想法去做优化，但是发现自己并没有那么多时间，收到的 issue 也越来越多。经过沟通，我会把这个库转给 &lt;a href="https://github.com/duckdb">DuckDB&lt;/a> 官方来维护，相信 duckdb-rs 一定会发展得越来越好。同时也非常感谢 Mark 和 Hannes 愿意接手这个仓库并把它作为官方的 rust 客户端。&lt;/p>
+&lt;p>这篇博客总结下我维护的这段时间主要做的事，以及我认为可以改善的点，算是对过去的总结和对未来的憧憬。&lt;/p>
+&lt;h2 id="关键决策">关键决策&lt;/h2>
+&lt;p>这个库是 duckdb 的 rust 客户端，所以关注这个库的群体首先是认可 duckdb 的用户，其次因为他们是 rust 技术栈。下面我列举一些我认为是让这个库“成功”的一些关键点。&lt;/p>
+&lt;ol>
+&lt;li>初始版本基于 &lt;a href="https://github.com/rusqlite/rusqlite">rusqlite&lt;/a> 开发。因为我也是一个 rust 初学者，之前只拿 rust 做过一个项目，这是第二次使用 rust。基于 rustqlite 这样一个成熟的仓库做改造，能让我很快得到一个可用的版本，快速建立信心；另外整个程序的组织，API 的设计都已经经过了验证，不容易走弯路；整体的代码质量也能有基本保障。&lt;/li>
+&lt;li>基于 &lt;a href="https://github.com/apache/arrow-rs">arrow&lt;/a> 格式来交换数据。arrow 现在基本上算是列存储的数据交换标准，在很多开源项目中都有使用，duckdb 对 arrow 的支持也比较完善。虽然 duckdb 有自己的原生 C 接口，但是基于 arrow 格式来做数据交换，能让 rust 和 c-api 调用相对稳定，不会因为 duckdb 迭代导致 C 接口的变更，我们也需要一直变更，一定程度上减轻了维护的工作量，也减少了接口变更对用户的影响。&lt;/li>
+&lt;li>完善的 CI 流程，我认为所有的开源项目都应该要做到这一点。因为继承自 rusqlite，这个库从一开始就有 CI 流程，能保证合并到 master 的代码是没问题的，并且 CI 里面还有关于内存泄漏的检测，避免了 ffi 带了的可能不安全的问题。发布过程也是自动化的，只要打个 tag 就自动发布到 crate。CI 的机制保障了任何感兴趣的人都可以提交 MR 并得到检验，也保证自己如果长时间不维护了不至于都不知道从哪里开始改。&lt;/li>
+&lt;/ol>
+&lt;h2 id="几个-mr">几个 MR&lt;/h2>
+&lt;p>下面我挑选几个我认为比较关键的，并且不是我贡献的 MR：&lt;/p>
+&lt;ol>
+&lt;li>&lt;a href="https://github.com/wangfenjin/duckdb-rs/pull/1">Add github workflow&lt;/a>，之前我都是直接 push master，这是第一个 MR 添加 CI 检测，非常有意义！&lt;/li>
+&lt;li>&lt;a href="https://github.com/wangfenjin/duckdb-rs/pull/32">add r2d2 connection pool&lt;/a>，添加连接池。&lt;/li>
+&lt;li>&lt;a href="https://github.com/wangfenjin/duckdb-rs/pull/127">Rework bundled compilation to support included extensions&lt;/a>，收到最大的一个 MR，为了支持 extension，重做了 bundle duckdb 源码的逻辑，让这个仓库也能打包进去各种扩展而不用额外安装。&lt;/li>
+&lt;li>&lt;a href="https://github.com/wangfenjin/duckdb-rs/pull/169">Feat: Develop query polars&lt;/a>，支持把 query 的结果转成 polars 的数据结构，&lt;a href="https://github.com/pola-rs/polars">polars&lt;/a> 是目前 rust 写的一个非常流行的数据处理工具，这个功能打通了 duckdb 和 polars。&lt;/li>
+&lt;/ol>
+&lt;p>我自己除了日常维护之外，实际上大的功能开发比较少，&lt;a href="https://github.com/wangfenjin/duckdb-rs/pull/138">Support table function&lt;/a> 算是一个，并且我认为基于 rust 写扩展远比基于 c/c++ 来写更简单，更安全！&lt;/p>
+&lt;h2 id="遗留问题">遗留问题&lt;/h2>
+&lt;p>因为精力有限，这个库还有一些问题需要解决：&lt;/p>
+&lt;ol>
+&lt;li>更好的文档。因为我的英语也是半路出家，所以写文档一直是想起来就头疼的问题。这个库因为是基于 rusqlite，所以继承了一部分文档，所以基本质量还在，但是后续缺少维护，特别是针对 duckdb 特性的一些文档资料比较少。好的文档和博客也是开源项目成功的关键。&lt;/li>
+&lt;li>支持更多数据类型。这里的数据类型分两类，一类是对于结果，映射到 rust 的数据类型，这部分的需求倒是不高优，特别是用户如果是使用的 arrow 数据的话，arrow-rs 本身有完整的数据类型；另一类是查询参数，这部分需要支持更多的数据类型绑定，方便用户使用。目前我们只支持了一些基础的数据类型。&lt;/li>
+&lt;li>更完善的数据插入支持。列存数据库需要有批量插入数据的能力，比如 duckdb 自带的 append 接口，或者支持插入 arrow 的数据等，目前这一块支持得不太好。&lt;/li>
+&lt;li>编译过程优化。随着 duckdb 功能丰富，这个库的编译也越来越慢，对资源的消耗也越来越多，编译的产物也越来越大。&lt;/li>
+&lt;li>一些 duckdb 或者列存特定的接口支持，比如 streaming query 或者 relation api，这些都有人提过 issue。&lt;/li>
+&lt;/ol>
+&lt;p>从文档和接口上，要达到和 duckdb 一样的水准，还有不少工作要做。&lt;/p>
+&lt;h2 id="后续计划">后续计划&lt;/h2>
+&lt;p>这篇文章发布的时候，意味着我不再是 duckdb-rs 的维护者。但是这不代表着后续我不再给 duckdb-rs 贡献代码，我还是会继续关注 duckdb 和 duckdb-rs，并且在闲暇的时候贡献一些代码。&lt;/p>
+&lt;p>如果有时间还可以基于 duckdb-rs 做一些其他的项目，比如用 rust 给 duckdb 做一个向量数据库的扩展，或者基于 duckdb-rs 搭建一个存储的 server，主要是基于 &lt;a href="https://github.com/apache/arrow-rs/tree/master/arrow-flight">arrow-flight&lt;/a> 协议，如果再有时间还可以加上 raft 支持分布式。不知道有什么用，但是感觉是个很好玩的项目。也可以考虑做一个分布式数据处理的工具，用 duckdb 做中间数据的存储或者计算加速等。&lt;/p></content></item><item><title>基于 apache-arrow 的 duckdb rust 客户端</title><link>https://www.wangfenjin.com/posts/duckdb-rs/</link><pubDate>Tue, 27 Jul 2021 00:00:00 +0000</pubDate><guid>https://www.wangfenjin.com/posts/duckdb-rs/</guid><description>背景 duckdb 是一个 C++ 编写的单机版嵌入式分析型数据库。它刚开源的时候是对标 SQLite 的列存数据库，并提供与 SQLite 一样的易用性，编译成一个头文件和一个 cpp 文件就可以在程序中使用，甚至提供与 SQLite 兼容的接口，因此受到了很多人的关注。
 本文介绍笔者近期开发的 duckdb-rs 库，让大家可以很方便地在 rust 代码库中使用 duckdb 的功能。
 libduckdb-sys 了解过 rust 的同学可能知道，rust 提供了 ffi 的方式与其他语言互通。因为 duckdb 本身是 C++ 编写的，想要在 rust 里面使用 duckdb，就需要考虑 ffi 的问题。而基于 ffi 对其他语言程序封装的基础库，一般会被命名为 libxxx-sys，这也就是 libduckdb-sys 的由来。
 为了方便大家使用，duckdb 提供了 C++ 原生接口，C 接口，以及与 SQLite3 兼容的 C 接口。我在做 libduckdb-sys 的时候对这三种接口都尝试过，相关的讨论可以参见 Rust Support，我这里介绍一下当时的情况。
